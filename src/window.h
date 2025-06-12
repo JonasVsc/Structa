@@ -1,6 +1,5 @@
 #ifndef STRUCTA_WINDOW_H
 #define STRUCTA_WINDOW_H
-#include "core.h"
 
 #include <SDL2/SDL.h>
 
