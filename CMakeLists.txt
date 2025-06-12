@@ -11,8 +11,18 @@ set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.0")
 
 include_directories(src ${VULKAN_SDK}/Include)
 
+set(WINDOW_SRC
+	"src/window.c"
+)
+
+set(RENDERER_SRC
+	"src/renderer.c"
+)
+
 add_executable (${PROJECT_NAME}
 	"src/main.c"
+	${RENDERER_SRC}
+	${WINDOW_SRC}
 )
 
 # 3RDPARTY LIBRARIES
