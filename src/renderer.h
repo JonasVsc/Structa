@@ -4,11 +4,15 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 
+#define DEBUG_RENDERER
+
 #ifdef DEBUG_RENDERER
 #define ENABLE_VALIDATION_LAYERS 1
 #else
 #define ENABLE_VALIDATION_LAYERS 0
 #endif
+
+#define MAX_FRAMES_IN_FLIGHT 3
 
 
 #define VK_CHECK(x)																										\
@@ -30,5 +34,6 @@ typedef struct StRenderer {
 
 void stCreateRenderer(StWindow* window, StRenderer* renderer);
 void stDestroyRenderer(StRenderer* renderer);
+void stRender();
 
 #endif // RENDERER_H

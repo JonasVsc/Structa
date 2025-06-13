@@ -2,8 +2,6 @@
 #include "window.h"
 #include "renderer.h"
 
-
-
 int main(int argc, char** args)
 {
 	printf("Hello, from Structa!\n");
@@ -22,6 +20,7 @@ int main(int argc, char** args)
 	while (!window.shouldClose)
 	{
 		stPoolEvents(&window);
+		stRender();
 	}
 
 	stDestroyRenderer(&renderer);
