@@ -1,7 +1,6 @@
 #include "renderer.h"
 #include "window.h"
 
-#include <SDL2/SDL_vulkan.h>
 
 #include <stdio.h>
 #include <assert.h>
@@ -42,7 +41,7 @@ typedef struct VulkanContext {
 	uint32_t imageIndex;
 } VulkanContext;
 
-static VulkanContext context;
+static VulkanContext context = { 0 };
 
 static void stCreateRendererInstance();
 static void stSelectRendererGPU();
@@ -190,13 +189,15 @@ void stRender()
 
 static void stCreateRendererInstance()
 {
-	uint32_t SDLExtensionsCount;
-	const char* SDLExtensions[10];
+	uint32_t SDLExtensionsCount = 0;
+	SDL_Vulkan_GetInstanceExtensions(context.window->handle, &SDLExtensionsCount, NULL);
+	const char* SDLExtensions[10] = { 0 };
 	SDL_Vulkan_GetInstanceExtensions(context.window->handle, &SDLExtensionsCount, SDLExtensions);
 
 	// Instance Extensions
-	uint32_t instanceExtensionCount;
-	VkExtensionProperties instanceExtensions[20];
+	uint32_t instanceExtensionCount = 0;
+	vkEnumerateInstanceExtensionProperties(NULL, &instanceExtensionCount, NULL);
+	VkExtensionProperties instanceExtensions[20] = { 0 };
 	vkEnumerateInstanceExtensionProperties(NULL, &instanceExtensionCount, instanceExtensions);
 
 	for (uint32_t i = 0; i < SDLExtensionsCount; ++i)
@@ -204,7 +205,7 @@ static void stCreateRendererInstance()
 		int hasSupport = 0;
 		for (uint32_t j = 0; j < instanceExtensionCount; ++j)
 		{
-			if (!strcmp(SDLExtensions[i], instanceExtensions[j].extensionName))
+			if (!SDL_strcmp(SDLExtensions[i], instanceExtensions[j].extensionName))
 			{
 				hasSupport = 1;
 				break;
@@ -254,16 +255,18 @@ static void stCreateRendererInstance()
 
 static void stSelectRendererGPU()
 {
-	uint32_t GPUCount;
-	VkPhysicalDevice GPUs[10];
+	uint32_t GPUCount = 0;
+	vkEnumeratePhysicalDevices(context.instance, &GPUCount, NULL);
+	VkPhysicalDevice GPUs[10] = { 0 };
 	vkEnumeratePhysicalDevices(context.instance, &GPUCount, GPUs);
 	assert(GPUCount > 0 && "your gpu not has the extensions requirements :(");
 
 	int isSuitable = 0;
 	for (uint32_t GPUIdx = 0; GPUIdx < GPUCount; ++GPUIdx)
 	{
-		uint32_t queueFamilyCount;
-		VkQueueFamilyProperties queueFamilies[20];
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(GPUs[GPUIdx], &queueFamilyCount, NULL);
+		VkQueueFamilyProperties queueFamilies[20] = { 0 };
 		vkGetPhysicalDeviceQueueFamilyProperties(GPUs[GPUIdx], &queueFamilyCount, queueFamilies);
 		if (queueFamilyCount == 0) continue;
 
@@ -273,11 +276,11 @@ static void stSelectRendererGPU()
 		{
 			uint32_t presentIdx = UINT32_MAX;
 			uint32_t graphicsIdx = UINT32_MAX;
-			uint32_t presentSupport = -1;
+			VkBool32 presentSupport = VK_FALSE;
 
 			vkGetPhysicalDeviceSurfaceSupportKHR(GPUs[GPUIdx], queueIdx, context.surface, &presentSupport);
 
-			if (presentSupport)
+			if (presentSupport == VK_TRUE)
 				presentIdx = queueIdx;
 			if (queueFamilies[queueIdx].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				graphicsIdx = queueIdx;
@@ -294,7 +297,7 @@ static void stSelectRendererGPU()
 			continue;
 		
 
-		VkSurfaceCapabilitiesKHR capabilities;
+		VkSurfaceCapabilitiesKHR capabilities = { 0 };
 		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(GPUs[GPUIdx], context.surface, &capabilities);
 
 		VkExtent2D selectedExtent;
@@ -318,10 +321,11 @@ static void stSelectRendererGPU()
 			imageCount = capabilities.maxImageCount;
 
 		// Surface format
-		uint32_t surfaceFormatCount;
-		VkSurfaceFormatKHR surfaceFormats[20];
-		VkSurfaceFormatKHR selectedSurfaceFormat = { 0 };
+		uint32_t surfaceFormatCount = 0;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(GPUs[GPUIdx], context.surface, &surfaceFormatCount, NULL);
+		VkSurfaceFormatKHR surfaceFormats[20] = { 0 };
 		vkGetPhysicalDeviceSurfaceFormatsKHR(GPUs[GPUIdx], context.surface, &surfaceFormatCount, surfaceFormats);
+		VkSurfaceFormatKHR selectedSurfaceFormat = { 0 };
 		if (surfaceFormatCount == 0)
 			continue;
 		for (uint32_t i = 0; i < surfaceFormatCount; ++i)
@@ -387,13 +391,14 @@ static void stCreateDevice()
 
 static void stCreateSwapchain()
 {
-	VkSurfaceCapabilitiesKHR capabilities;
+	VkSurfaceCapabilitiesKHR capabilities = { 0 };
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context.GPU, context.surface, &capabilities);
 
-	uint32_t presentModeCount;
-	VkPresentModeKHR presentModes[10];
-	VkPresentModeKHR selectedPresentMode = {0};
+	uint32_t presentModeCount = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(context.GPU, context.surface, &presentModeCount, NULL);
+	VkPresentModeKHR presentModes[10] = { 0 };
 	vkGetPhysicalDeviceSurfacePresentModesKHR(context.GPU, context.surface, &presentModeCount, presentModes);
+	VkPresentModeKHR selectedPresentMode = {0};
 	for (uint32_t i = 0; i < presentModeCount; ++i)
 	{
 		if (presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR)

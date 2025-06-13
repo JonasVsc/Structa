@@ -2,6 +2,7 @@
 #define STRUCTA_WINDOW_H
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 
 typedef enum StWindowResult {
 	ST_SUCCESS = 0,

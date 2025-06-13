@@ -1,5 +1,9 @@
-﻿cmake_minimum_required (VERSION 3.28)
+﻿cmake_minimum_required (VERSION 3.31)
 project ("Structa")
+
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -8,7 +12,6 @@ if (POLICY CMP0141)
 endif()
 
 set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.0")
-
 include_directories(src ${VULKAN_SDK}/Include)
 
 set(WINDOW_SRC
@@ -37,5 +40,5 @@ set(VULKAN_LIB
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PRIVATE ${SDL2_LIB} ${VULKAN_LIB}
+	PRIVATE ${VULKAN_LIB} ${SDL2_LIB}
 )

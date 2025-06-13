@@ -2,9 +2,15 @@
 #include "window.h"
 #include "renderer.h"
 
-int main(int argc, char** args)
+int main(int argc, char** argv)
 {
 	printf("Hello, from Structa!\n");
+
+#ifdef NDEBUG
+	printf("Running release mode!\n");
+#else
+	printf("Running release mode!\n");
+#endif
 
 	StWindow window;
 	StWindowCreateInfo windowCI = {
