@@ -5,13 +5,13 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 
-#ifdef DEBUG_RENDERER
-#define ENABLE_VALIDATION_LAYERS 1
+#ifdef NDEBUG
+	#define ENABLE_VALIDATION_LAYERS 0
 #else
-#define ENABLE_VALIDATION_LAYERS 0
+	#define ENABLE_VALIDATION_LAYERS 1
 #endif
 
-#define MAX_FRAMES_IN_FLIGHT 3
+#define MAX_FRAMES_IN_FLIGHT 1
 
 
 #define VK_CHECK(x)																										\

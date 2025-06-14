@@ -37,11 +37,6 @@
       "name": "release-build",
       "configurePreset": "release",
       "displayName": "Build (Release)"
-    },
-    {
-      "name": "reldebug-build",
-      "configurePreset": "release",
-      "displayName": "Build (Release)"
     }
   ]
 }

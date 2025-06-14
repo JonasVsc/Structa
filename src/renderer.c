@@ -23,18 +23,18 @@ typedef struct VulkanContext {
 	VkQueue presentQueue;
 
 	VkSwapchainKHR swapchain;
-	VkImage swapchainImages[3];
-	VkImageView swapchainImageViews[3];
+	VkImage swapchainImages[5];
+	VkImageView swapchainImageViews[5];
 
 	VkRenderPass renderPass;
-	VkFramebuffer framebuffers[3];
+	VkFramebuffer framebuffers[5];
 
 	VkCommandPool commandPool;
-	VkCommandBuffer commandBuffers[3];
+	VkCommandBuffer commandBuffers[5];
 
-	VkSemaphore imageAvailableSemaphores[3];
-	VkSemaphore renderFinishedSemaphores[3];
-	VkFence inFlightFences[3];
+	VkSemaphore imageAvailableSemaphores[5];
+	VkSemaphore renderFinishedSemaphores[5];
+	VkFence inFlightFences[5];
 
 	VkClearColorValue clearValue;
 	uint32_t frameInFlight;
@@ -112,7 +112,7 @@ void stRender()
 	vkWaitForFences(context.device, 1, &context.inFlightFences[context.frameInFlight], VK_TRUE, UINT64_MAX);
 	vkResetFences(context.device, 1, &context.inFlightFences[context.frameInFlight]);
 
-	vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.imageAvailableSemaphores[context.frameInFlight], VK_NULL_HANDLE, &context.imageIndex);
+	VK_CHECK(vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.imageAvailableSemaphores[context.frameInFlight], VK_NULL_HANDLE, &context.imageIndex));
 
 	vkResetCommandBuffer(context.commandBuffers[context.frameInFlight], 0);
 
@@ -146,7 +146,6 @@ void stRender()
 	vkCmdBeginRenderPass(context.commandBuffers[context.frameInFlight], &renderBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 
-
 	vkCmdEndRenderPass(context.commandBuffers[context.frameInFlight]);
 	vkEndCommandBuffer(context.commandBuffers[context.frameInFlight]);
 
@@ -166,7 +165,7 @@ void stRender()
 		.pSignalSemaphores = signalSemaphores
 	};
 
-	vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, context.inFlightFences[context.frameInFlight]);
+	VK_CHECK(vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, context.inFlightFences[context.frameInFlight]));
 
 	// Present the swapchain image
 	VkSwapchainKHR swapchains[] = { context.swapchain };
@@ -180,7 +179,7 @@ void stRender()
 		.pImageIndices = &context.imageIndex
 	};
 
-	vkQueuePresentKHR(context.presentQueue, &presentInfo);
+	VK_CHECK(vkQueuePresentKHR(context.presentQueue, &presentInfo));
 
 	context.frameInFlight = (context.frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -217,9 +216,9 @@ static void stCreateRendererInstance()
 	const char* extensions[] = {
 		"VK_KHR_surface",
 		"VK_KHR_win32_surface",
-#ifdef DEBUG_RENDERER
+#ifndef NDEBUG
 		"VK_EXT_debug_utils"
-#endif // DEBUG_RENDERER
+#endif // NDEBUG
 	};
 
 	VkApplicationInfo appInfo = {
@@ -317,8 +316,7 @@ static void stSelectRendererGPU()
 
 		// Swapchain Image Count
 		uint32_t imageCount = capabilities.minImageCount + 1;
-		if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
-			imageCount = capabilities.maxImageCount;
+		imageCount = imageCount > capabilities.maxImageCount ? imageCount - 1 : imageCount;
 
 		// Surface format
 		uint32_t surfaceFormatCount = 0;
