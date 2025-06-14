@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 #ifdef NDEBUG
 	printf("Running release mode!\n");
 #else
-	printf("Running release mode!\n");
+	printf("Running debug mode!\n");
 #endif
 
 	StWindow window;
