@@ -1,3 +1,4 @@
+#define RENDERER_EXPORT
 #include "renderer.h"
 #include "window.h"
 
@@ -57,7 +58,7 @@ static void stCreateSyncObjects();
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
 
-void stCreateRenderer(StWindow* window, StRenderer* renderer)
+RENDERER_API void stCreateRenderer(StWindow* window, StRenderer* renderer)
 {
 	assert(window != NULL && "MUST has a valid StWindow* window");
 	assert(renderer != NULL && "MUST has StRenderer* renderer");
@@ -83,7 +84,7 @@ void stCreateRenderer(StWindow* window, StRenderer* renderer)
 	context.frameInFlight = 0;
 }
 
-void stDestroyRenderer(StRenderer* renderer)
+RENDERER_API void stDestroyRenderer(StRenderer* renderer)
 {
 	vkDeviceWaitIdle(context.device);
 
@@ -110,7 +111,7 @@ void stDestroyRenderer(StRenderer* renderer)
 	vkDestroyInstance(context.instance, NULL);
 }
 
-void stRender()
+RENDERER_API void stRender()
 {
 	VK_CHECK(vkWaitForFences(context.device, 1, &context.frameFences[context.frameInFlight], VK_TRUE, UINT64_MAX));
 	VK_CHECK(vkResetFences(context.device, 1, &context.frameFences[context.frameInFlight]));

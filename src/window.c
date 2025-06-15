@@ -1,8 +1,9 @@
+#define WINDOW_EXPORT
 #include "window.h"
 
 #include <assert.h>
 
-StWindowResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window)
+WINDOW_API StWindowResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window)
 {
     if (!window)
         return ST_ERROR;
@@ -17,7 +18,7 @@ StWindowResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* wi
     return ST_SUCCESS;
 }
 
-void stPoolEvents(StWindow* window)
+WINDOW_API void stPoolEvents(StWindow* window)
 {
     SDL_Event event;
     while (SDL_PollEvent(&event)) 
@@ -27,7 +28,7 @@ void stPoolEvents(StWindow* window)
     }
 }
 
-void stDestroyWindow(StWindow* window)
+WINDOW_API void stDestroyWindow(StWindow* window)
 {
     if (!window->handle)
         return;

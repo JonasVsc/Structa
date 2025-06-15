@@ -17,10 +17,16 @@ set(RENDERER_SRC
 	"src/renderer.c"
 )
 
+add_library(window SHARED
+    "src/window.c"
+)
+
+add_library(renderer SHARED
+    "src/renderer.c"
+)
+
 add_executable (${PROJECT_NAME}
 	"src/main.c"
-	${RENDERER_SRC}
-	${WINDOW_SRC}
 )
 
 # 3RDPARTY LIBRARIES
@@ -35,5 +41,10 @@ set(VULKAN_LIB
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PRIVATE ${VULKAN_LIB} ${SDL2_LIB}
+PRIVATE ${VULKAN_LIB} ${SDL2_LIB}
 )
+
+target_include_directories(window PRIVATE ${VULKAN_SDK}/Include)
+target_link_libraries(window PRIVATE ${SDL2_LIB})
+target_include_directories(renderer PRIVATE ${VULKAN_SDK}/Include)
+target_link_libraries(renderer PRIVATE ${VULKAN_LIB} ${SDL2_LIB})
