@@ -32,14 +32,17 @@ typedef struct VulkanContext {
 	VkCommandPool commandPool;
 	VkCommandBuffer commandBuffers[5];
 
-	VkSemaphore imageAvailableSemaphores[5];
-	VkSemaphore renderFinishedSemaphores[5];
-	VkFence inFlightFences[5];
+	VkSemaphore acquireSemaphores[5];
+	VkSemaphore submitSemaphores[5];
+	VkFence frameFences[5];
 
 	VkClearColorValue clearValue;
 	uint32_t frameInFlight;
 	uint32_t imageIndex;
 } VulkanContext;
+
+// Mainly a const, but not all devices support 2 frames in flight
+static uint32_t MAX_FRAMES_IN_FLIGHT = 2; 
 
 static VulkanContext context = { 0 };
 
@@ -86,15 +89,15 @@ void stDestroyRenderer(StRenderer* renderer)
 
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		vkDestroySemaphore(context.device, context.imageAvailableSemaphores[i], NULL);
-		vkDestroySemaphore(context.device, context.renderFinishedSemaphores[i], NULL);
-		vkDestroyFence(context.device, context.inFlightFences[i], NULL);
+		vkDestroySemaphore(context.device, context.acquireSemaphores[i], NULL);
+		vkDestroyFence(context.device, context.frameFences[i], NULL);
 	}
 
 	vkDestroyCommandPool(context.device, context.commandPool, NULL);
 
 	for (uint32_t i = 0; i < context.imageCount; ++i)
 	{
+		vkDestroySemaphore(context.device, context.submitSemaphores[i], NULL);
 		vkDestroyFramebuffer(context.device, context.framebuffers[i], NULL);
 		vkDestroyImageView(context.device, context.swapchainImageViews[i], NULL);
 	}
@@ -109,18 +112,18 @@ void stDestroyRenderer(StRenderer* renderer)
 
 void stRender()
 {
-	vkWaitForFences(context.device, 1, &context.inFlightFences[context.frameInFlight], VK_TRUE, UINT64_MAX);
-	vkResetFences(context.device, 1, &context.inFlightFences[context.frameInFlight]);
+	VK_CHECK(vkWaitForFences(context.device, 1, &context.frameFences[context.frameInFlight], VK_TRUE, UINT64_MAX));
+	VK_CHECK(vkResetFences(context.device, 1, &context.frameFences[context.frameInFlight]));
 
-	VK_CHECK(vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.imageAvailableSemaphores[context.frameInFlight], VK_NULL_HANDLE, &context.imageIndex));
+	VK_CHECK(vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.acquireSemaphores[context.frameInFlight], VK_NULL_HANDLE, &context.imageIndex));
 
-	vkResetCommandBuffer(context.commandBuffers[context.frameInFlight], 0);
+	VK_CHECK(vkResetCommandBuffer(context.commandBuffers[context.frameInFlight], 0));
 
 	VkCommandBufferBeginInfo cmdBeginInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
-	vkBeginCommandBuffer(context.commandBuffers[context.frameInFlight], &cmdBeginInfo);
+	VK_CHECK(vkBeginCommandBuffer(context.commandBuffers[context.frameInFlight], &cmdBeginInfo));
 
 	VkClearValue clearColor = { 
 		.color = {
@@ -147,12 +150,12 @@ void stRender()
 
 
 	vkCmdEndRenderPass(context.commandBuffers[context.frameInFlight]);
-	vkEndCommandBuffer(context.commandBuffers[context.frameInFlight]);
+	VK_CHECK(vkEndCommandBuffer(context.commandBuffers[context.frameInFlight]));
 
 	// Submit the recorded command buffer
-	VkSemaphore waitSemaphores[] = { context.imageAvailableSemaphores[context.frameInFlight] };
+	VkSemaphore waitSemaphores[] = { context.acquireSemaphores[context.frameInFlight] };
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore signalSemaphores[] = { context.renderFinishedSemaphores[context.frameInFlight] };
+	VkSemaphore signalSemaphores[] = { context.submitSemaphores[context.imageIndex] };
 
 	VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -165,7 +168,7 @@ void stRender()
 		.pSignalSemaphores = signalSemaphores
 	};
 
-	VK_CHECK(vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, context.inFlightFences[context.frameInFlight]));
+	VK_CHECK(vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, context.frameFences[context.frameInFlight]));
 
 	// Present the swapchain image
 	VkSwapchainKHR swapchains[] = { context.swapchain };
@@ -317,6 +320,14 @@ static void stSelectRendererGPU()
 		// Swapchain Image Count
 		uint32_t imageCount = capabilities.minImageCount + 1;
 		imageCount = imageCount > capabilities.maxImageCount ? imageCount - 1 : imageCount;
+		
+		if (capabilities.minImageCount > MAX_FRAMES_IN_FLIGHT)
+		{
+			printf("\n[INFO] Your device sucks man\n");
+
+		}
+		// Image count must be the same as max frames in flight
+
 
 		// Surface format
 		uint32_t surfaceFormatCount = 0;
@@ -570,9 +581,13 @@ static void stCreateSyncObjects()
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		VK_CHECK(vkCreateSemaphore(context.device, &semaphoreCI, NULL, &context.imageAvailableSemaphores[i]));
-		VK_CHECK(vkCreateSemaphore(context.device, &semaphoreCI, NULL, &context.renderFinishedSemaphores[i]));
-		VK_CHECK(vkCreateFence(context.device, &fenceCI, NULL, &context.inFlightFences[i]));
+		VK_CHECK(vkCreateSemaphore(context.device, &semaphoreCI, NULL, &context.acquireSemaphores[i]));
+		VK_CHECK(vkCreateFence(context.device, &fenceCI, NULL, &context.frameFences[i]));
+	}
+
+	for (int i = 0; i < context.imageCount; i++)
+	{
+		VK_CHECK(vkCreateSemaphore(context.device, &semaphoreCI, NULL, &context.submitSemaphores[i]));
 	}
 }
 

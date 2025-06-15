@@ -11,7 +11,6 @@
 	#define ENABLE_VALIDATION_LAYERS 1
 #endif
 
-#define MAX_FRAMES_IN_FLIGHT 1
 
 
 #define VK_CHECK(x)																										\

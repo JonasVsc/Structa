@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.0")
+set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.2")
 include_directories(src ${VULKAN_SDK}/Include)
 
 set(WINDOW_SRC
