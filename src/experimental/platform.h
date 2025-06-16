@@ -18,29 +18,6 @@ typedef float F32;
 typedef double F64;
 
 #ifdef _WIN32
-    #define PLATFORM_MAX_KEY_COUNT 256
-#else
-    #error
-#endif
-
-typedef enum
-{
-#ifdef _WIN32   
-    PLATFORM_KEY_RESERVED = 0,
-    PLATFORM_KEY_UP = 0x26,
-    PLATFORM_KEY_F4 = 0x73,
-    PLATFORM_KEY_LEFT_ALT = 0x12,
-#else
-    #error
-#endif
-} PlatformKeyEnumaration;
-
-#ifndef PLATFORM_LIBRARY_EXPORT
-void *(*platformCreateCanvas)(UInt *error, char *canvasIcon, char *canvasTitle, int x, int y, int width, int height);
-Bool (*platformGetInput)(UInt *error, U8 *key, UPtr keySize);
-UInt (*platformDestroyCanvas)(UInt *error, void *canvas);
-
-#ifdef _WIN32
     U32 GetLastError();
     U32 FormatMessageA(U32 flags, void *source, U32 messageId, U32 languageId, char *buffer, U32 bufferSize, void *arguments);
     void *LoadLibraryA(const char *libFileName);
@@ -48,6 +25,13 @@ UInt (*platformDestroyCanvas)(UInt *error, void *canvas);
     void *GetProcAddress(void *module, char *procName);
 #else
     #error
+#endif
+
+#ifndef PLATFORM_LIBRARY_INCLUDE
+    #define PLATFORM_API __declspec(dllexport)
+    PLATFORM_API char *platformTest();
+#else
+    #define PLATFORM_API static
 #endif
 
 static UInt platformGetErrorMessage(UInt error, void *buffer, UPtr buffer_size)
@@ -70,13 +54,13 @@ static UInt platformGetErrorMessage(UInt error, void *buffer, UPtr buffer_size)
         return result;
     }
 
-    if(buffer_size >= (length + 1))
+    if(buffer_size < (length + 1))
     {
-        ((U8 *)buffer)[length] = '\0';
+        ((U8 *)buffer)[length - 1] = '\0';
     }
     else
     {
-        ((U8 *)buffer)[length - 1] = '\0';
+        ((U8 *)buffer)[length] = '\0';
     }
 #else
     #error
@@ -154,6 +138,5 @@ static void *platformGetFunctionAddress(UInt *error, void *library, char *functi
 
     return result;
 }
-#endif
 
 #endif

@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.2")
+set(VULKAN_SDK "C:/VulkanSDK/1.4.313.2")
 include_directories(src ${VULKAN_SDK}/Include)
 
 set(WINDOW_SRC
@@ -58,4 +58,5 @@ target_include_directories(renderer PRIVATE ${VULKAN_SDK}/Include)
 target_link_libraries(renderer PRIVATE ${VULKAN_LIB} ${SDL2_LIB})
 target_include_directories(platform PRIVATE "src/experimental")
 target_link_libraries(platform PRIVATE "kernel32.lib")
-target_link_libraries(main PRIVATE "platform.lib")
+target_include_directories(main PRIVATE "src/experimental")
+target_link_libraries(main PRIVATE platform)
