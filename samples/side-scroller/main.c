@@ -4,7 +4,7 @@
 
 int main(int argc, char** argv)
 {
-	printf("Hello, from Structa!\n");
+	printf("Hello, from side-scroller!\n");
 
 #ifdef NDEBUG
 	printf("Running release mode!\n");

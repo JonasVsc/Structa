@@ -4,10 +4,11 @@ project ("Structa")
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.2")
-include_directories(src ${VULKAN_SDK}/Include)
+include_directories(src ${VULKAN_SDK}/Include include)
 
 set(WINDOW_SRC
 	"src/window.c"
@@ -17,8 +18,7 @@ set(RENDERER_SRC
 	"src/renderer.c"
 )
 
-add_executable (${PROJECT_NAME}
-	"src/main.c"
+add_library (${PROJECT_NAME} SHARED
 	${RENDERER_SRC}
 	${WINDOW_SRC}
 )
@@ -35,5 +35,14 @@ set(VULKAN_LIB
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PRIVATE ${VULKAN_LIB} ${SDL2_LIB}
+	PUBLIC ${VULKAN_LIB} ${SDL2_LIB}
+)
+
+add_subdirectory(samples)
+
+add_custom_command(
+    TARGET Structa POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:Structa>"
+        "$<TARGET_FILE_DIR:Structa>/samples"
 )
