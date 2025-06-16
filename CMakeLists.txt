@@ -8,7 +8,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.2")
-include_directories(src ${VULKAN_SDK}/Include)
+include_directories(src ${VULKAN_SDK}/Include include)
 
 set(WINDOW_SRC
 	"src/window.c"
@@ -39,3 +39,10 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 add_subdirectory(samples)
+
+add_custom_command(
+    TARGET Structa POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:Structa>"
+        "$<TARGET_FILE_DIR:Structa>/samples"
+)

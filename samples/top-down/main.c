@@ -1,6 +1,5 @@
+#include "structa.h"
 #include <stdio.h>
-#include "window.h"
-#include "renderer.h"
 
 int main(int argc, char** argv)
 {
