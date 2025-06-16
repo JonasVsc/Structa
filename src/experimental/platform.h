@@ -17,19 +17,73 @@ typedef U64 UPtr;
 typedef float F32;
 typedef double F64;
 
-typedef struct
-{
-    U8 buttonList[512];
-} platform_input;
-
-#ifndef PLATFORM_LIBRARY_EXPORT
 #ifdef _WIN32
-    U32 GetLastError();
-    void *LoadLibraryA(const char *libFileName);
-    int FreeLibrary(void *libModule);
+    #define PLATFORM_MAX_KEY_COUNT 256
 #else
     #error
 #endif
+
+typedef enum
+{
+#ifdef _WIN32   
+    PLATFORM_KEY_RESERVED = 0,
+    PLATFORM_KEY_UP = 0x26,
+    PLATFORM_KEY_F4 = 0x73,
+    PLATFORM_KEY_LEFT_ALT = 0x12,
+#else
+    #error
+#endif
+} PlatformKeyEnumaration;
+
+#ifndef PLATFORM_LIBRARY_EXPORT
+void *(*platformCreateCanvas)(UInt *error, char *canvasIcon, char *canvasTitle, int x, int y, int width, int height);
+Bool (*platformGetInput)(UInt *error, U8 *key, UPtr keySize);
+UInt (*platformDestroyCanvas)(UInt *error, void *canvas);
+
+#ifdef _WIN32
+    U32 GetLastError();
+    U32 FormatMessageA(U32 flags, void *source, U32 messageId, U32 languageId, char *buffer, U32 bufferSize, void *arguments);
+    void *LoadLibraryA(const char *libFileName);
+    int FreeLibrary(void *libModule);
+    void *GetProcAddress(void *module, char *procName);
+#else
+    #error
+#endif
+
+static UInt platformGetErrorMessage(UInt error, void *buffer, UPtr buffer_size)
+{
+    UInt result = 0;
+
+    if(!buffer_size)
+    {
+        return result;
+    }
+
+    *(U8 *)buffer = '\0';
+
+#ifdef _WIN32
+    U32 length = FormatMessageA(0x00001000 | 0x00000200, 0, error, 0, buffer, buffer_size, 0);
+
+    if(!length)
+    {
+        result = GetLastError();
+        return result;
+    }
+
+    if(buffer_size >= (length + 1))
+    {
+        ((U8 *)buffer)[length] = '\0';
+    }
+    else
+    {
+        ((U8 *)buffer)[length - 1] = '\0';
+    }
+#else
+    #error
+#endif
+
+    return result;
+}
 
 static void *platformLoadLibrary(UInt *error, char *libraryName)
 {
@@ -55,21 +109,50 @@ static void *platformLoadLibrary(UInt *error, char *libraryName)
     return result;
 }
 
-static void platformFreeLibrary(UInt *error, void *library)
+static void *platformFreeLibrary(UInt *error, void *library)
 {
+    void *result = 0;
+
     if(!error)
     {
-        return;
+        return result;
     }
 
 #ifdef _WIN32
     if(!FreeLibrary(library))
     {
         *error = GetLastError();
+        return result;
     }
 #else
     #error
 #endif
+
+    return 0;
+}
+
+static void *platformGetFunctionAddress(UInt *error, void *library, char *functionName)
+{
+    void *result = 0;
+
+    if(!error)
+    {
+        return result;
+    }
+
+#ifdef _WIN32
+    result = GetProcAddress(library, functionName);
+
+    if(!result)
+    {
+        *error = GetLastError();
+        return result;
+    }
+#else
+    #error
+#endif
+
+    return result;
 }
 #endif
 

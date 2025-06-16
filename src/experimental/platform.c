@@ -3,6 +3,7 @@
 
 #ifdef _WIN32
     #include <windows.h>
+    #define PLATFORM_API __declspec(dllexport) 
     
 LRESULT mainWindowCallback(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -32,11 +33,7 @@ LRESULT mainWindowCallback(HWND window, UINT message, WPARAM wparam, LPARAM lpar
     #error
 #endif
 
-void platformWriteConsole(void *buffer, UPtr buffer_length)
-{
-}
-
-void *platformCreateCanvas(UInt *error, char *canvasIcon, char *canvasTitle, int x, int y, int width, int height)
+PLATFORM_API void *platformCreateCanvas(UInt *error, char *canvasIcon, char *canvasTitle, int x, int y, int width, int height)
 {
     void *result = 0;
 
@@ -69,7 +66,7 @@ void *platformCreateCanvas(UInt *error, char *canvasIcon, char *canvasTitle, int
     return result;
 }
 
-Bool platformGetInput(UInt *error, platform_input *input)
+PLATFORM_API Bool platformGetInput(UInt *error, U8 *key, UPtr keySize)
 {
     Bool result = 1;
 
@@ -85,11 +82,32 @@ Bool platformGetInput(UInt *error, platform_input *input)
     {
         switch(message.message)
         {
-            case WM_CLOSE:
+            case WM_QUIT:
             {
                 result = 0;
                 TranslateMessage(&message);
                 DispatchMessageA(&message);
+            } break;
+
+            case WM_KEYUP:
+            case WM_KEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_SYSKEYDOWN:
+            {
+                Bool isDown = !(message.lParam & (1 << 31));
+                Bool WasDown = (message.lParam & (1 << 30)) != 0;
+                Bool heldDown = isDown && WasDown;
+                Bool isAltDown = (message.lParam & (1 << 29)) != 0;
+                UPtr vkCode = message.wParam;
+
+                if(heldDown)
+                {
+                    key[vkCode] = -1;
+                }
+                else
+                {
+                    key[vkCode] = isDown;
+                }
             } break;
 
             default:
@@ -106,7 +124,7 @@ Bool platformGetInput(UInt *error, platform_input *input)
     return result;
 }
 
-UInt platformDestroyCanvas(UInt *error, void *canvas)
+PLATFORM_API UInt platformDestroyCanvas(UInt *error, void *canvas)
 {
     UInt result = 0;
 
