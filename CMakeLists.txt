@@ -18,9 +18,14 @@ set(RENDERER_SRC
 	"src/renderer.c"
 )
 
+set(UTILS_SRC
+	"src/utils/helper.c"
+)
+
 add_library (${PROJECT_NAME} SHARED
 	${RENDERER_SRC}
 	${WINDOW_SRC}
+	${UTILS_SRC}
 )
 
 # 3RDPARTY LIBRARIES
