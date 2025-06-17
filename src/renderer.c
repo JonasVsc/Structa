@@ -5,6 +5,23 @@
 #include <stdio.h>
 #include <assert.h>
 
+#ifdef NDEBUG
+	#define ENABLE_VALIDATION_LAYERS 0
+	#define VK_CHECK(x) x
+#else
+	#define ENABLE_VALIDATION_LAYERS 1
+	#define VK_CHECK(x)																										\
+		do																													\
+		{																													\
+			VkResult err = x;																								\
+			if (err)																										\
+			{																												\
+				fprintf(stderr, "\033[38;2;255;128;128;4;5m Detected Vulkan error: %s\033[0m", string_VkResult(err));		\
+				abort();																									\
+			}																												\
+		} while (0)
+#endif
+
 typedef struct VulkanContext {
 	StWindow* window;
 	VkInstance instance;
@@ -57,7 +74,7 @@ static void stCreateSyncObjects();
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
 
-void stCreateRenderer(StWindow* window, StRenderer* renderer)
+StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
 {
 	assert(window != NULL && "MUST has a valid StWindow* window");
 	assert(renderer != NULL && "MUST has StRenderer* renderer");
@@ -81,9 +98,11 @@ void stCreateRenderer(StWindow* window, StRenderer* renderer)
 
 	context.imageIndex = 0;
 	context.frameInFlight = 0;
+
+	return ST_SUCCESS;
 }
 
-void stDestroyRenderer(StRenderer* renderer)
+StResult stDestroyRenderer(StRenderer* renderer)
 {
 	vkDeviceWaitIdle(context.device);
 
@@ -108,6 +127,8 @@ void stDestroyRenderer(StRenderer* renderer)
 	vkDestroyDevice(context.device, NULL);
 	vkDestroySurfaceKHR(context.instance, context.surface, NULL);
 	vkDestroyInstance(context.instance, NULL);
+
+	return ST_SUCCESS;
 }
 
 void stRender()

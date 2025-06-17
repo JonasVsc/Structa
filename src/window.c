@@ -2,7 +2,7 @@
 
 #include <assert.h>
 
-StWindowResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window)
+StResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window)
 {
     if (!window)
         return ST_ERROR;
@@ -13,7 +13,6 @@ StWindowResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* wi
         return ST_ERROR;
 
     window->shouldClose = 0;
-
     return ST_SUCCESS;
 }
 

@@ -2,6 +2,24 @@
 #include "window.h"
 #include "renderer.h"
 
+#include "utils/helper.h"
+
+#ifdef NDEBUG
+#define ST_CHECK(x) x
+#else
+#define ST_CHECK(x)																										\
+		do																													\
+		{																													\
+			StResult err = x;																								\
+			if (err)																										\
+			{																												\
+				fprintf(stderr, "\033[38;2;255;128;128;4;5m Detected Structa error: %s\033[0m", stStringResult(err));		\
+				abort();																									\
+			}																												\
+		} while (0)
+#endif
+
+
 int main(int argc, char** argv)
 {
 	printf("Hello, from side-scroller!\n");
@@ -18,10 +36,10 @@ int main(int argc, char** argv)
 		.width = 640,
 		.height = 480
 	};
-	stCreateWindow(&windowCI, &window);
+	ST_CHECK(stCreateWindow(&windowCI, &window));
 
 	StRenderer renderer;
-	stCreateRenderer(&window, &renderer);
+	ST_CHECK(stCreateRenderer(&window, &renderer));
 
 	while (!window.shouldClose)
 	{

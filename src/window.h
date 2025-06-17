@@ -1,13 +1,10 @@
 #ifndef STRUCTA_WINDOW_H
 #define STRUCTA_WINDOW_H
 
+#include "core.h"
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
-
-typedef enum StWindowResult {
-	ST_SUCCESS = 0,
-	ST_ERROR = -1
-} StWindowResult;
 
 typedef struct StWindowCreateInfo {
 	const char *title;
@@ -23,7 +20,7 @@ typedef struct StWindow {
 } StWindow;
 
 // Init window
-StWindowResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window);
+StResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window);
 
 // Pool events
 void stPoolEvents(StWindow* window);
