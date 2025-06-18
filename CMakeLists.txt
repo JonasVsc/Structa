@@ -62,19 +62,16 @@ file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
 file(GLOB_RECURSE SHADER_SOURCES "src/shaders/*.vert" "src/shaders/*.frag")
 
 foreach(SHADER_SOURCE_FILE ${SHADER_SOURCES})
-    # Define o nome do arquivo de saída .spv
     get_filename_component(SHADER_NAME ${SHADER_SOURCE_FILE} NAME)
     set(SHADER_OUTPUT_FILE "${SHADER_OUTPUT_DIR}/${SHADER_NAME}.spv")
 
-    # Adiciona um comando customizado que compila o shader se ele for modificado
     add_custom_command(
         OUTPUT ${SHADER_OUTPUT_FILE}
         COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE_FILE} -o ${SHADER_OUTPUT_FILE}
-        DEPENDS ${SHADER_SOURCE_FILE} # Dependência explícita do arquivo fonte
+        DEPENDS ${SHADER_SOURCE_FILE}
         COMMENT "Compilando shader: ${SHADER_NAME}"
     )
 
-    # Coleta todos os arquivos .spv gerados em uma lista
     list(APPEND SHADER_OUTPUTS ${SHADER_OUTPUT_FILE})
 endforeach()
 
