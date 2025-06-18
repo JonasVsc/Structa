@@ -1,14 +1,26 @@
 ﻿cmake_minimum_required (VERSION 3.31)
 project ("Structa")
 
+include(FetchContent)
+
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-set(VULKAN_SDK "C:\\VulkanSDK\\1.4.313.2")
-include_directories(src ${VULKAN_SDK}/Include include)
+find_package(Vulkan)
+
+FetchContent_Declare(
+    SDL
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+    GIT_TAG        release-2.32.8 
+)
+
+set(SDL_TESTS OFF CACHE BOOL "Disable SDL tests")
+set(SDL_INSTALL_TESTS OFF CACHE BOOL "Disable installing SDL tests")
+
+FetchContent_MakeAvailable(SDL)
 
 set(WINDOW_SRC
 	"src/window.c"
@@ -28,20 +40,44 @@ add_library (${PROJECT_NAME} SHARED
 	${UTILS_SRC}
 )
 
-# 3RDPARTY LIBRARIES
-
-set(SDL2_LIB
-	"${VULKAN_SDK}/Lib/SDL2main.lib"
-	"${VULKAN_SDK}/Lib/SDL2.lib"
-)
-
-set(VULKAN_LIB
-	"${VULKAN_SDK}/Lib/vulkan-1.lib"
+target_include_directories(${PROJECT_NAME}
+	PUBLIC Vulkan::Headers include src
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PUBLIC ${VULKAN_LIB} ${SDL2_LIB}
+	PUBLIC Vulkan::Vulkan SDL2 SDL2main
 )
+
+# --- Shaders --- #
+
+find_program(
+    GLSLC_EXECUTABLE glslc
+    REQUIRED
+    DOC "Caminho para o compilador glslc"
+)
+
+set(SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/samples")
+file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
+
+file(GLOB_RECURSE SHADER_SOURCES "src/shaders/*.vert" "src/shaders/*.frag")
+
+foreach(SHADER_SOURCE_FILE ${SHADER_SOURCES})
+    get_filename_component(SHADER_NAME ${SHADER_SOURCE_FILE} NAME)
+    set(SHADER_OUTPUT_FILE "${SHADER_OUTPUT_DIR}/${SHADER_NAME}.spv")
+
+    add_custom_command(
+        OUTPUT ${SHADER_OUTPUT_FILE}
+        COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE_FILE} -o ${SHADER_OUTPUT_FILE}
+        DEPENDS ${SHADER_SOURCE_FILE}
+        COMMENT "Compilando shader: ${SHADER_NAME}"
+    )
+
+    list(APPEND SHADER_OUTPUTS ${SHADER_OUTPUT_FILE})
+endforeach()
+
+add_custom_target(Shaders ALL DEPENDS ${SHADER_OUTPUTS})
+
+# --- Samples --- #
 
 add_subdirectory(samples)
 

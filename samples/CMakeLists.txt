@@ -11,6 +11,7 @@ target_link_libraries(side-scroller
 # Top down sample
 add_executable(top-down
 	"top-down/main.c"
+	"top-down/game.c"
 )
 
 target_link_libraries(top-down 
