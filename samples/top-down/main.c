@@ -39,6 +39,27 @@ int main(int argc, char** argv)
 	StRenderer renderer;
 	ST_CHECK(stCreateRenderer(&window, &renderer));
 
+	float vertices[] = {
+		// position		// color
+		 0.5f,  0.5f,	1.0f, 0.0f, 0.0f, 
+		 0.0f, -0.5f,	0.0f, 1.0f, 0.0f,
+		-0.5f,  0.5f,	0.0f, 0.0f, 1.0f,
+
+	};
+
+	StRenderableCreateInfo renderableCI = {
+		.src = vertices,
+		.size = sizeof(vertices),
+	};
+
+	StRenderable renderable;
+	renderable.vertexCount = 3;
+	renderable.draw = 1;
+
+	stCreateRenderable(&renderableCI, &renderable);
+
+	stRenderBatchPush(&renderable);
+
 	while (!window.shouldClose)
 	{
 		stPoolEvents(&window);
