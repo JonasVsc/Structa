@@ -39,12 +39,18 @@ int main(int argc, char** argv)
 	StRenderer renderer;
 	ST_CHECK(stCreateRenderer(&window, &renderer));
 
+	// Scene
+	StSceneCreateInfo sceneCI = {
+		.initialCapacity = 10
+	};
+	StScene scene;
+	stCreateScene(&sceneCI, &scene);
+
 	float vertices[] = {
 		// position		// color
 		 0.5f,  0.5f,	1.0f, 0.0f, 0.0f, 
 		 0.0f, -0.5f,	0.0f, 1.0f, 0.0f,
 		-0.5f,  0.5f,	0.0f, 0.0f, 1.0f,
-
 	};
 
 	StRenderableCreateInfo renderableCI = {
@@ -55,10 +61,11 @@ int main(int argc, char** argv)
 	StRenderable renderable;
 	renderable.vertexCount = 3;
 	renderable.draw = 1;
-
+	
 	stCreateRenderable(&renderableCI, &renderable);
+	stSceneAddRenderable(&scene, &renderable);
 
-	stRenderBatchPush(&renderable);
+	stSetScene(&scene);
 
 	while (!window.shouldClose)
 	{

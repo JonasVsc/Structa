@@ -34,11 +34,6 @@ typedef struct StPipeline {
 	VkPipelineLayout layout;
 } StPipeline;
 
-typedef struct RenderBatch {
-	StRenderable renderables[MAX_RENDERABLES];
-	uint32_t count;
-} RenderBatch;
-
 typedef struct VulkanContext {
 	StWindow* window;
 	VkInstance instance;
@@ -80,7 +75,7 @@ static uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 static VulkanContext context = { 0 };
 static StPipeline pipeline = { 0 };
-static RenderBatch renderBatch = { 0 };
+static StScene* currentScene = { 0 };
 
 static void stCreateRendererInstance();
 static void stSelectRendererGPU();
@@ -93,8 +88,6 @@ static void stCreateSyncObjects();
 static void stCreatePipeline();
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 static const char* readBinaryFile(const char* path, size_t* fileSize);
-static StResult stCreateBuffer(const StBufferCreateInfo* createInfo, StBuffer* buffer);
-static void stMapBufferMemory(void* src, size_t size, const StBuffer* buffer);
 static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
 StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
@@ -113,6 +106,7 @@ StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
 	stCreateFramebuffers();
 	stCreateCommandPoolBuffers();
 	stCreateSyncObjects();
+	stCreatePipeline();
 
 	context.clearValue.float32[0] = 0.0f;
 	context.clearValue.float32[1] = 0.0f;
@@ -122,7 +116,6 @@ StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
 	context.imageIndex = 0;
 	context.frameInFlight = 0;
 
-	stCreatePipeline();
 
 	return ST_SUCCESS;
 }
@@ -131,10 +124,12 @@ StResult stDestroyRenderer(StRenderer* renderer)
 {
 	vkDeviceWaitIdle(context.device);
 
-	for (int i = 0; i < renderBatch.count; ++i)
+	if (currentScene)
 	{
-		vkDestroyBuffer(context.device, renderBatch.renderables[i].vertexBuffer.buffer, NULL);
-		vkFreeMemory(context.device, renderBatch.renderables[i].vertexBuffer.memory, NULL);
+		for (uint32_t i = 0; i < currentScene->count; ++i)
+		{
+			stDestroyBuffer(&currentScene->renderables[i]->vertexBuffer);
+		}
 	}
 
 	vkDestroyPipelineLayout(context.device, pipeline.layout, NULL);
@@ -222,17 +217,30 @@ void stRender()
 	vkCmdSetViewport(context.commandBuffers[context.frameInFlight], 0, 1, &viewport);
 	vkCmdSetScissor(context.commandBuffers[context.frameInFlight], 0, 1, &scissor);
 
-	// draw
-	for (uint32_t i = 0; i < renderBatch.count; ++i)
+	if (currentScene)
 	{
-		if (!renderBatch.renderables->draw)
-			continue;
+		for (uint32_t i = 0; i < currentScene->count; ++i)
+		{
+			if (!currentScene->renderables[i]->draw)
+				continue;
 
-		VkBuffer vertexBuffers[] = { renderBatch.renderables[i].vertexBuffer.buffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(context.commandBuffers[context.frameInFlight], 0, 1, vertexBuffers, offsets);
-		vkCmdDraw(context.commandBuffers[context.frameInFlight], renderBatch.renderables[i].vertexCount, 1, 0, 0);
+			VkBuffer vertexBuffers[] = { currentScene->renderables[i]->vertexBuffer.buffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(context.commandBuffers[context.frameInFlight], 0, 1, vertexBuffers, offsets);
+			vkCmdDraw(context.commandBuffers[context.frameInFlight], currentScene->renderables[i]->vertexCount, 1, 0, 0);
+		}
 	}
+		// draw
+	//for (uint32_t i = 0; i < renderBatch.count; ++i)
+	//{
+	//	if (!renderBatch.renderables->draw)
+	//		continue;
+
+	//	VkBuffer vertexBuffers[] = { renderBatch.renderables[i].vertexBuffer.buffer };
+	//	VkDeviceSize offsets[] = { 0 };
+	//	vkCmdBindVertexBuffers(context.commandBuffers[context.frameInFlight], 0, 1, vertexBuffers, offsets);
+	//	vkCmdDraw(context.commandBuffers[context.frameInFlight], renderBatch.renderables[i].vertexCount, 1, 0, 0);
+	//}
 
 	vkCmdEndRenderPass(context.commandBuffers[context.frameInFlight]);
 	VK_CHECK(vkEndCommandBuffer(context.commandBuffers[context.frameInFlight]));
@@ -272,29 +280,15 @@ void stRender()
 	context.frameInFlight = (context.frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-StResult stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable)
+void stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable)
 {
-	// Create Buffer
 	StBufferCreateInfo bufferCI = {
-		.buffer_size = createInfo->size,
-		.buffer_usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+		.bufferSize = createInfo->size,
+		.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
 	};
 
-	StResult res = stCreateBuffer(&bufferCI, &renderable->vertexBuffer);
-	
-	// Map memory
+	stCreateBuffer(&bufferCI, &renderable->vertexBuffer);
 	stMapBufferMemory(createInfo->src, createInfo->size, &renderable->vertexBuffer);
-
-	return res;
-}
-
-StResult stRenderBatchPush(StRenderable* renderable)
-{
-	if (renderBatch.count >= MAX_RENDERABLES)
-		return ST_ERROR;
-
-	renderBatch.renderables[renderBatch.count] = *renderable;
-	renderBatch.count++;
 }
 
 static void stCreateRendererInstance()
@@ -889,18 +883,18 @@ const char* readBinaryFile(const char* path, size_t* fileSize)
 	return buffer;
 }
 
-static StResult stCreateBuffer(const StBufferCreateInfo* createInfo, StBuffer* buffer)
+StResult stCreateBuffer(const StBufferCreateInfo* createInfo, StBuffer* buffer)
 {
 	if (!createInfo)
 		return ST_ERROR;
 
 	VkBufferCreateInfo bufferCI = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.usage = createInfo->buffer_usage,
+		.usage = createInfo->bufferUsage,
 		.queueFamilyIndexCount = 1,
 		.pQueueFamilyIndices = &context.graphicsFamily,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.size = (VkDeviceSize)createInfo->buffer_size,
+		.size = (VkDeviceSize)createInfo->bufferSize,
 	};
 
 	VK_CHECK(vkCreateBuffer(context.device, &bufferCI, NULL, &buffer->buffer));
@@ -920,6 +914,12 @@ static StResult stCreateBuffer(const StBufferCreateInfo* createInfo, StBuffer* b
 	return ST_SUCCESS;
 }
 
+void stDestroyBuffer(StBuffer* buffer)
+{
+	vkDestroyBuffer(context.device, buffer->buffer, NULL);
+	vkFreeMemory(context.device, buffer->memory, NULL);
+}
+
 static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
@@ -936,12 +936,48 @@ static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proper
 	return 0;
 }
 
-static void stMapBufferMemory(void* src, size_t size, const StBuffer* buffer)
+void stMapBufferMemory(void* src, size_t size, const StBuffer* buffer)
 {
 	void* data;
 	vkMapMemory(context.device, buffer->memory, 0, (VkDeviceSize)size, 0, &data);
 		memcpy(data, src, size);
 	vkUnmapMemory(context.device, buffer->memory);
+}
+
+StResult stCreateScene(const StSceneCreateInfo* createInfo, StScene* scene)
+{
+	if (!scene)
+		return ST_ERROR;
+
+	scene->renderables = (StRenderable**)malloc(createInfo->initialCapacity * sizeof(StRenderable*));
+	if (!scene->renderables)
+	{
+		free(scene);
+		return ST_ERROR;
+	}
+
+	scene->count = 0;
+	scene->capacity = createInfo->initialCapacity;
+
+	return ST_SUCCESS;
+}
+
+void stSetScene(StScene* scene)
+{
+	currentScene = scene;
+}
+
+StResult stSceneAddRenderable(StScene* scene, StRenderable* renderable)
+{
+	if (scene->count >= scene->capacity)
+	{
+		return ST_ERROR;
+	}
+
+	scene->renderables[scene->count] = renderable;
+	scene->count++;
+
+	return ST_SUCCESS;
 }
 
 

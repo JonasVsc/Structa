@@ -2,6 +2,8 @@
 # Side scroller sample
 add_executable(side-scroller
 	"side-scroller/main.c"
+	"side-scroller/game.c"
+	"side-scroller/components.c"
 )
 
 target_link_libraries(side-scroller 

@@ -8,8 +8,8 @@
 typedef struct StWindow StWindow;
 
 typedef struct StBufferCreateInfo {
-	VkBufferUsageFlags buffer_usage;
-	size_t buffer_size;
+	VkBufferUsageFlags bufferUsage;
+	size_t bufferSize;
 } StBufferCreateInfo;
 
 typedef struct StBuffer {
@@ -28,6 +28,16 @@ typedef struct StRenderable {
 	uint32_t draw;
 } StRenderable;
 
+typedef struct StSceneCreateInfo {
+	uint32_t initialCapacity;
+} StSceneCreateInfo;
+
+typedef struct StScene {
+	StRenderable** renderables;
+	uint32_t capacity;
+	uint32_t count;
+} StScene;
+
 typedef struct StRenderer {
 	StWindow* window;
 } StRenderer;
@@ -37,7 +47,12 @@ StResult stDestroyRenderer(StRenderer* renderer);
 void stRender();
 
 
-StResult stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable);
-StResult stRenderBatchPush(StRenderable* renderable);
+void stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable);
+StResult stCreateBuffer(const StBufferCreateInfo* createInfo, StBuffer* buffer);
+void stDestroyBuffer(StBuffer* buffer);
+void stMapBufferMemory(void* src, size_t size, const StBuffer* buffer);
+StResult stCreateScene(const StSceneCreateInfo* createInfo, StScene* scene);
+void stSetScene(StScene* scene);
+StResult stSceneAddRenderable(StScene* scene, StRenderable* renderable);
 
 #endif // RENDERER_H
