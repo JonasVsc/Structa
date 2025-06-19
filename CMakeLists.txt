@@ -22,6 +22,14 @@ set(SDL_INSTALL_TESTS OFF CACHE BOOL "Disable installing SDL tests")
 
 FetchContent_MakeAvailable(SDL)
 
+FetchContent_Declare(
+    CGLM
+    GIT_REPOSITORY https://github.com/recp/cglm.git
+    GIT_TAG        v0.9.6
+)
+
+FetchContent_MakeAvailable(CGLM)
+
 set(WINDOW_SRC
 	"src/window.c"
 )
@@ -45,7 +53,7 @@ target_include_directories(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PUBLIC Vulkan::Vulkan SDL2 SDL2main
+	PUBLIC Vulkan::Vulkan SDL2 SDL2main cglm
 )
 
 # --- Shaders --- #
