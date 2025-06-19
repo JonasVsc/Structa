@@ -1,6 +1,7 @@
 #ifndef STRUCTA_CORE_H
 #define STRUCTA_CORE_H
 
+#include <stdbool.h>
 // typedefs
 
 typedef enum StResult {

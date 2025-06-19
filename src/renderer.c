@@ -5,7 +5,8 @@
 #include <assert.h>
 #include <string.h>
 
-#define MAX_RENDERABLES 10
+#define MAX_MESHES 1024
+#define MAX_RENDERABLES 1024
 
 #ifdef NDEBUG
 	#define ENABLE_VALIDATION_LAYERS 0
@@ -24,16 +25,30 @@
 		} while (0)
 #endif
 
-typedef struct Vertex {
-	float position[2];
-	float color[3];
-} Vertex;
+typedef struct PushConstants {
+	mat4 projection;
+	mat4 model;
+} PushConstants;
 
-typedef struct StPipeline {
-	VkPipeline handle;
-	VkPipelineLayout layout;
-} StPipeline;
+// MESH
+typedef struct VulkanMesh {
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	uint32_t vertexCount;
+} VulkanMesh;
 
+// MANAGERS
+typedef struct MeshManager {
+	VulkanMesh meshes[MAX_MESHES];
+	uint32_t meshesCount;
+} MeshManager;
+
+typedef struct RenderQueue {
+	StRenderable renderables[MAX_RENDERABLES];
+	uint32_t renderablesCount;
+} RenderQueue;
+
+// RENDERER CORE
 typedef struct VulkanContext {
 	StWindow* window;
 	VkInstance instance;
@@ -70,12 +85,17 @@ typedef struct VulkanContext {
 	uint32_t imageIndex;
 } VulkanContext;
 
-// Mainly a const, but not all devices support 2 frames in flight
-static uint32_t MAX_FRAMES_IN_FLIGHT = 2; 
+typedef struct StPipeline {
+	VkPipeline handle;
+	VkPipelineLayout layout;
+} StPipeline;
 
+static const uint32_t MAX_FRAMES_IN_FLIGHT = 2; 
 static VulkanContext context = { 0 };
 static StPipeline pipeline = { 0 };
-static StScene* currentScene = { 0 };
+
+static MeshManager meshManager = { 0 };
+static RenderQueue renderQueue = { 0 };
 
 static void stCreateRendererInstance();
 static void stSelectRendererGPU();
@@ -89,6 +109,7 @@ static void stCreatePipeline();
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 static const char* readBinaryFile(const char* path, size_t* fileSize);
 static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+static void stDestroyManagers();
 
 StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
 {
@@ -124,13 +145,7 @@ StResult stDestroyRenderer(StRenderer* renderer)
 {
 	vkDeviceWaitIdle(context.device);
 
-	if (currentScene)
-	{
-		for (uint32_t i = 0; i < currentScene->count; ++i)
-		{
-			stDestroyBuffer(&currentScene->renderables[i]->vertexBuffer);
-		}
-	}
+	stDestroyManagers();
 
 	vkDestroyPipelineLayout(context.device, pipeline.layout, NULL);
 	vkDestroyPipeline(context.device, pipeline.handle, NULL);
@@ -162,6 +177,10 @@ StResult stDestroyRenderer(StRenderer* renderer)
 
 void stRender()
 {
+	static mat4 projectionMatrix = { 0 };
+	glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, -1.0f, 1.0f, projectionMatrix);
+
+
 	VK_CHECK(vkWaitForFences(context.device, 1, &context.frameFences[context.frameInFlight], VK_TRUE, UINT64_MAX));
 	VK_CHECK(vkResetFences(context.device, 1, &context.frameFences[context.frameInFlight]));
 
@@ -217,30 +236,23 @@ void stRender()
 	vkCmdSetViewport(context.commandBuffers[context.frameInFlight], 0, 1, &viewport);
 	vkCmdSetScissor(context.commandBuffers[context.frameInFlight], 0, 1, &scissor);
 
-	if (currentScene)
+	for (int32_t i = 0; i < renderQueue.renderablesCount; ++i)
 	{
-		for (uint32_t i = 0; i < currentScene->count; ++i)
-		{
-			if (!currentScene->renderables[i]->draw)
-				continue;
+		if (!renderQueue.renderables[i].isVisible)
+			continue;
 
-			VkBuffer vertexBuffers[] = { currentScene->renderables[i]->vertexBuffer.buffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(context.commandBuffers[context.frameInFlight], 0, 1, vertexBuffers, offsets);
-			vkCmdDraw(context.commandBuffers[context.frameInFlight], currentScene->renderables[i]->vertexCount, 1, 0, 0);
-		}
+
+		PushConstants renderablePushConstant = { 0 };
+		glm_mat4_copy(projectionMatrix, renderablePushConstant.projection);
+		glm_mat4_copy(renderQueue.renderables[i].modelMatrix, renderablePushConstant.model);
+
+		vkCmdPushConstants(context.commandBuffers[context.frameInFlight], pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &renderablePushConstant);
+
+		VkBuffer vertexBuffers[] = { meshManager.meshes[renderQueue.renderables[i].meshID].vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(context.commandBuffers[context.frameInFlight], 0, 1, vertexBuffers, offsets);
+		vkCmdDraw(context.commandBuffers[context.frameInFlight], meshManager.meshes[renderQueue.renderables[i].meshID].vertexCount, 1, 0, 0);
 	}
-		// draw
-	//for (uint32_t i = 0; i < renderBatch.count; ++i)
-	//{
-	//	if (!renderBatch.renderables->draw)
-	//		continue;
-
-	//	VkBuffer vertexBuffers[] = { renderBatch.renderables[i].vertexBuffer.buffer };
-	//	VkDeviceSize offsets[] = { 0 };
-	//	vkCmdBindVertexBuffers(context.commandBuffers[context.frameInFlight], 0, 1, vertexBuffers, offsets);
-	//	vkCmdDraw(context.commandBuffers[context.frameInFlight], renderBatch.renderables[i].vertexCount, 1, 0, 0);
-	//}
 
 	vkCmdEndRenderPass(context.commandBuffers[context.frameInFlight]);
 	VK_CHECK(vkEndCommandBuffer(context.commandBuffers[context.frameInFlight]));
@@ -280,15 +292,57 @@ void stRender()
 	context.frameInFlight = (context.frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable)
+StResult stLoadMesh(StMeshCreateInfo* createInfo, uint32_t* id)
 {
-	StBufferCreateInfo bufferCI = {
-		.bufferSize = createInfo->size,
-		.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+	if (meshManager.meshesCount >= MAX_MESHES)
+		return ST_ERROR;
+
+	// Create buffer
+	VkBufferCreateInfo bufferCI = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		.queueFamilyIndexCount = 1,
+		.pQueueFamilyIndices = &context.graphicsFamily,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.size = (VkDeviceSize)createInfo->size,
 	};
 
-	stCreateBuffer(&bufferCI, &renderable->vertexBuffer);
-	stMapBufferMemory(createInfo->src, createInfo->size, &renderable->vertexBuffer);
+	VK_CHECK(vkCreateBuffer(context.device, &bufferCI, NULL, &meshManager.meshes[meshManager.meshesCount].vertexBuffer));
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(context.device, meshManager.meshes[meshManager.meshesCount].vertexBuffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+	};
+
+	VK_CHECK(vkAllocateMemory(context.device, &allocInfo, NULL, &meshManager.meshes[meshManager.meshesCount].vertexBufferMemory));
+	vkBindBufferMemory(context.device, meshManager.meshes[meshManager.meshesCount].vertexBuffer, meshManager.meshes[meshManager.meshesCount].vertexBufferMemory, 0);
+
+	// Map memory
+	void* data;
+	vkMapMemory(context.device, meshManager.meshes[meshManager.meshesCount].vertexBufferMemory, 0, (VkDeviceSize)createInfo->size, 0, &data);
+		memcpy(data, createInfo->src, createInfo->size);
+	vkUnmapMemory(context.device, meshManager.meshes[meshManager.meshesCount].vertexBufferMemory);
+
+	*id = meshManager.meshesCount;
+	meshManager.meshesCount++;
+	meshManager.meshes->vertexCount = createInfo->vertexCount;
+
+	return ST_SUCCESS;
+}
+
+StResult stSubmit(StRenderable* renderable)
+{
+	if (renderQueue.renderablesCount >= MAX_RENDERABLES)
+		return ST_ERROR;
+
+	renderQueue.renderables[renderQueue.renderablesCount] = *renderable;
+	renderQueue.renderablesCount++;
+
+	return ST_SUCCESS;
 }
 
 static void stCreateRendererInstance()
@@ -735,7 +789,7 @@ void stCreatePipeline()
 
 	VkVertexInputBindingDescription bindingDescriptions = {
 		.binding = 0,
-		.stride = sizeof(Vertex),
+		.stride = 5 * sizeof(float),
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 	};
 
@@ -744,12 +798,12 @@ void stCreatePipeline()
 	attributeDescriptions[0].location = 0;
 	attributeDescriptions[0].binding = 0;
 	attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-	attributeDescriptions[0].offset = offsetof(Vertex, position);
+	attributeDescriptions[0].offset = 0;
 
 	attributeDescriptions[1].location = 1;
 	attributeDescriptions[1].binding = 0;
 	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[1].offset = offsetof(Vertex, color);
+	attributeDescriptions[1].offset = 2 * sizeof(float);
 
 	VkPipelineVertexInputStateCreateInfo vertexInputCI = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -819,8 +873,16 @@ void stCreatePipeline()
 		.pAttachments = &colorBlendAttachment
 	};
 
+	VkPushConstantRange pushConstantRange = {
+		.size = sizeof(PushConstants),
+		.offset = 0,
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+	};
+
 	VkPipelineLayoutCreateInfo pipelineLayoutCI = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &pushConstantRange
 	};
 
 	VK_CHECK(vkCreatePipelineLayout(context.device, &pipelineLayoutCI, NULL, &pipeline.layout));
@@ -883,43 +945,6 @@ const char* readBinaryFile(const char* path, size_t* fileSize)
 	return buffer;
 }
 
-StResult stCreateBuffer(const StBufferCreateInfo* createInfo, StBuffer* buffer)
-{
-	if (!createInfo)
-		return ST_ERROR;
-
-	VkBufferCreateInfo bufferCI = {
-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.usage = createInfo->bufferUsage,
-		.queueFamilyIndexCount = 1,
-		.pQueueFamilyIndices = &context.graphicsFamily,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.size = (VkDeviceSize)createInfo->bufferSize,
-	};
-
-	VK_CHECK(vkCreateBuffer(context.device, &bufferCI, NULL, &buffer->buffer));
-
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(context.device, buffer->buffer, &memRequirements);
-
-	VkMemoryAllocateInfo allocInfo = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memRequirements.size,
-		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-	};
-
-	VK_CHECK(vkAllocateMemory(context.device, &allocInfo, NULL, &buffer->memory));
-	vkBindBufferMemory(context.device, buffer->buffer, buffer->memory, 0);
-
-	return ST_SUCCESS;
-}
-
-void stDestroyBuffer(StBuffer* buffer)
-{
-	vkDestroyBuffer(context.device, buffer->buffer, NULL);
-	vkFreeMemory(context.device, buffer->memory, NULL);
-}
-
 static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
@@ -936,48 +961,11 @@ static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proper
 	return 0;
 }
 
-void stMapBufferMemory(void* src, size_t size, const StBuffer* buffer)
+void stDestroyManagers()
 {
-	void* data;
-	vkMapMemory(context.device, buffer->memory, 0, (VkDeviceSize)size, 0, &data);
-		memcpy(data, src, size);
-	vkUnmapMemory(context.device, buffer->memory);
-}
-
-StResult stCreateScene(const StSceneCreateInfo* createInfo, StScene* scene)
-{
-	if (!scene)
-		return ST_ERROR;
-
-	scene->renderables = (StRenderable**)malloc(createInfo->initialCapacity * sizeof(StRenderable*));
-	if (!scene->renderables)
+	for (uint32_t i = 0; i < meshManager.meshesCount; ++i)
 	{
-		free(scene);
-		return ST_ERROR;
+		vkDestroyBuffer(context.device, meshManager.meshes[i].vertexBuffer, NULL);
+		vkFreeMemory(context.device, meshManager.meshes[i].vertexBufferMemory, NULL);
 	}
-
-	scene->count = 0;
-	scene->capacity = createInfo->initialCapacity;
-
-	return ST_SUCCESS;
 }
-
-void stSetScene(StScene* scene)
-{
-	currentScene = scene;
-}
-
-StResult stSceneAddRenderable(StScene* scene, StRenderable* renderable)
-{
-	if (scene->count >= scene->capacity)
-	{
-		return ST_ERROR;
-	}
-
-	scene->renderables[scene->count] = renderable;
-	scene->count++;
-
-	return ST_SUCCESS;
-}
-
-
