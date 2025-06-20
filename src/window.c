@@ -2,6 +2,27 @@
 
 #include <assert.h>
 
+// =============================================================================
+// Definições de Estruturas Internas
+// =============================================================================
+
+typedef struct StInternalWindow {
+    SDL_Window* handle;
+    int width, height;
+    bool shouldClose;
+} StInternalWindow;
+
+// =============================================================================
+// Variáveis Internas
+// =============================================================================
+
+static StInternalWindow state = { 0 };
+
+
+// =============================================================================
+// Implementação da API Pública
+// =============================================================================
+
 StResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window)
 {
     if (!window)
@@ -16,16 +37,6 @@ StResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window)
     return ST_SUCCESS;
 }
 
-void stPoolEvents(StWindow* window)
-{
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) 
-    {
-        if (event.type == SDL_QUIT) 
-            window->shouldClose = 1;
-    }
-}
-
 void stDestroyWindow(StWindow* window)
 {
     if (!window->handle)
@@ -33,4 +44,14 @@ void stDestroyWindow(StWindow* window)
 
     SDL_DestroyWindow(window->handle);
     window->handle = NULL;
+}
+
+void stPoolEvents(StWindow* window)
+{
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+    {
+        if (event.type == SDL_QUIT)
+            window->shouldClose = 1;
+    }
 }

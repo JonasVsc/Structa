@@ -1,10 +1,16 @@
 #ifndef STRUCTA_WINDOW_H
 #define STRUCTA_WINDOW_H
 
+// =============================================================================
+// Dependencies
+// =============================================================================
 #include "core.h"
-
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
+
+// =============================================================================
+// Public Data Structures
+// =============================================================================
 
 typedef struct StWindowCreateInfo {
 	const char *title;
@@ -19,14 +25,17 @@ typedef struct StWindow {
 	int height;
 } StWindow;
 
-// Init window
+// =============================================================================
+// Window Lifecycle API
+// =============================================================================
+
 StResult stCreateWindow(const StWindowCreateInfo* createInfo, StWindow* window);
-
-// Pool events
-void stPoolEvents(StWindow* window);
-
-// Destroy window
 void stDestroyWindow(StWindow* window);
 
+// =============================================================================
+// Window Interact API
+// =============================================================================
+
+void stPoolEvents(StWindow* window);
 
 #endif // STRUCTA_WINDOW_H

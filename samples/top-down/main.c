@@ -3,50 +3,30 @@
 
 #include "utils/helper.h"
 
-#ifdef NDEBUG
-#define ST_CHECK(x) x
-#else
-#define ST_CHECK(x)																										\
-	do																													\
-	{																													\
-		StResult err = x;																								\
-		if (err)																										\
-		{																												\
-			fprintf(stderr, "\033[38;2;255;128;128;4;5m Detected Structa error: %s\033[0m", stStringResult(err));		\
-			abort();																									\
-		}																												\
-	} while (0)
-#endif
+typedef struct Application {
+	StWindow window;
+} Application;
+
+static Application app = { 0 };
 
 int main(int argc, char** argv)
 {
-	printf("Hello, from top-down!\n");
-
-#ifdef NDEBUG
-	printf("Running release mode!\n");
-#else
-	printf("Running debug mode!\n");
-#endif
-
-	StWindow window;
 	StWindowCreateInfo windowCI = {
 		.title = "teste",
 		.width = 640,
 		.height = 480
 	};
-	ST_CHECK(stCreateWindow(&windowCI, &window));
-
-	StRenderer renderer;
-	ST_CHECK(stCreateRenderer(&window, &renderer));
+	ST_CHECK(stCreateWindow(&windowCI, &app.window));
+	ST_CHECK(stCreateRenderer(&app.window));
 
 
-	while (!window.shouldClose)
+	while (!app.window.shouldClose)
 	{
-		stPoolEvents(&window);
+		stPoolEvents(&app.window);
 		stRender();
 	}
 
-	stDestroyRenderer(&renderer);
-	stDestroyWindow(&window);
+	stDestroyRenderer();
+	stDestroyWindow(&app.window);
 	return 0;
 }

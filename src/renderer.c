@@ -5,15 +5,21 @@
 #include <assert.h>
 #include <string.h>
 
+// =============================================================================
+// Macros e Constantes
+// =============================================================================
+
 #define MAX_MESHES 1024
 #define MAX_RENDERABLES 1024
+#define MAX_FRAMES_IN_FLIGHT 2
 
 #ifdef NDEBUG
 	#define ENABLE_VALIDATION_LAYERS 0
-	#define VK_CHECK(x) x
 #else
 	#define ENABLE_VALIDATION_LAYERS 1
-	#define VK_CHECK(x)																										\
+#endif
+
+#define VK_CHECK(x)																										    \
 		do																													\
 		{																													\
 			VkResult err = x;																								\
@@ -23,21 +29,22 @@
 				abort();																									\
 			}																												\
 		} while (0)
-#endif
+
+// =============================================================================
+// Definições de Estruturas Internas
+// =============================================================================
 
 typedef struct PushConstants {
 	mat4 projection;
 	mat4 model;
 } PushConstants;
 
-// MESH
 typedef struct VulkanMesh {
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
 	uint32_t vertexCount;
 } VulkanMesh;
 
-// MANAGERS
 typedef struct MeshManager {
 	VulkanMesh meshes[MAX_MESHES];
 	uint32_t meshesCount;
@@ -48,8 +55,15 @@ typedef struct RenderQueue {
 	uint32_t renderablesCount;
 } RenderQueue;
 
-// RENDERER CORE
-typedef struct VulkanContext {
+typedef struct VulkanPipeline {
+	VkPipeline handle;
+	VkPipelineLayout layout;
+} VulkanPipeline;
+
+/**
+ * @brief O core do renderer. Agrupa todo o estado do Vulkan e dos managers.
+ */
+typedef struct StInternalRenderer {
 	StWindow* window;
 	VkInstance instance;
 	VkSurfaceKHR surface;
@@ -83,20 +97,23 @@ typedef struct VulkanContext {
 	VkClearColorValue clearValue;
 	uint32_t frameInFlight;
 	uint32_t imageIndex;
-} VulkanContext;
 
-typedef struct StPipeline {
-	VkPipeline handle;
-	VkPipelineLayout layout;
-} StPipeline;
+	VulkanPipeline pipeline;
+} StInternalRenderer;
 
-static const uint32_t MAX_FRAMES_IN_FLIGHT = 2; 
-static VulkanContext context = { 0 };
-static StPipeline pipeline = { 0 };
+// =============================================================================
+// Variáveis Internas
+// =============================================================================
 
+static StInternalRenderer context = { 0 };
 static MeshManager meshManager = { 0 };
 static RenderQueue renderQueue = { 0 };
 
+// =============================================================================
+// Protótipos das Funções Estáticas (Helpers)
+// =============================================================================
+
+// Helpers de inicialização
 static void stCreateRendererInstance();
 static void stSelectRendererGPU();
 static void stCreateDevice();
@@ -106,15 +123,22 @@ static void stCreateFramebuffers();
 static void stCreateCommandPoolBuffers();
 static void stCreateSyncObjects();
 static void stCreatePipeline();
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-static const char* readBinaryFile(const char* path, size_t* fileSize);
-static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
+// Helpers de destruição
 static void stDestroyManagers();
 
-StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
+// Outros Helpers
+static const char* readBinaryFile(const char* path, size_t* fileSize);
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
+// =============================================================================
+// Implementação da API Pública
+// =============================================================================
+
+StResult stCreateRenderer(StWindow* window)
 {
 	assert(window != NULL && "MUST has a valid StWindow* window");
-	assert(renderer != NULL && "MUST has StRenderer* renderer");
 	
 	context.window = window;
 
@@ -137,18 +161,17 @@ StResult stCreateRenderer(StWindow* window, StRenderer* renderer)
 	context.imageIndex = 0;
 	context.frameInFlight = 0;
 
-
 	return ST_SUCCESS;
 }
 
-StResult stDestroyRenderer(StRenderer* renderer)
+StResult stDestroyRenderer()
 {
 	vkDeviceWaitIdle(context.device);
 
 	stDestroyManagers();
 
-	vkDestroyPipelineLayout(context.device, pipeline.layout, NULL);
-	vkDestroyPipeline(context.device, pipeline.handle, NULL);
+	vkDestroyPipelineLayout(context.device, context.pipeline.layout, NULL);
+	vkDestroyPipeline(context.device, context.pipeline.handle, NULL);
 
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
@@ -217,7 +240,7 @@ void stRender()
 
 	vkCmdBeginRenderPass(context.commandBuffers[context.frameInFlight], &renderBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(context.commandBuffers[context.frameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+	vkCmdBindPipeline(context.commandBuffers[context.frameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, context.pipeline.handle);
 
 	VkViewport viewport = {
 		.x = 0,
@@ -246,7 +269,7 @@ void stRender()
 		glm_mat4_copy(projectionMatrix, renderablePushConstant.projection);
 		glm_mat4_copy(renderQueue.renderables[i].modelMatrix, renderablePushConstant.model);
 
-		vkCmdPushConstants(context.commandBuffers[context.frameInFlight], pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &renderablePushConstant);
+		vkCmdPushConstants(context.commandBuffers[context.frameInFlight], context.pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &renderablePushConstant);
 
 		VkBuffer vertexBuffers[] = { meshManager.meshes[renderQueue.renderables[i].meshID].vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
@@ -292,7 +315,7 @@ void stRender()
 	context.frameInFlight = (context.frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-StResult stLoadMesh(StMeshCreateInfo* createInfo, uint32_t* id)
+StResult stCreateMesh(const StMeshCreateInfo* createInfo, uint32_t* id)
 {
 	if (meshManager.meshesCount >= MAX_MESHES)
 		return ST_ERROR;
@@ -344,6 +367,10 @@ StResult stSubmit(StRenderable* renderable)
 
 	return ST_SUCCESS;
 }
+
+// =============================================================================
+// Implementação das Funções Estáticas (Helpers)
+// =============================================================================
 
 static void stCreateRendererInstance()
 {
@@ -885,7 +912,7 @@ void stCreatePipeline()
 		.pPushConstantRanges = &pushConstantRange
 	};
 
-	VK_CHECK(vkCreatePipelineLayout(context.device, &pipelineLayoutCI, NULL, &pipeline.layout));
+	VK_CHECK(vkCreatePipelineLayout(context.device, &pipelineLayoutCI, NULL, &context.pipeline.layout));
 
 	VkGraphicsPipelineCreateInfo pipelineCI = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -899,12 +926,12 @@ void stCreatePipeline()
 		.pDepthStencilState = NULL, // Optional
 		.pColorBlendState = &colorBlendCI,
 		.pDynamicState = &dynamicStateCI,
-		.layout = pipeline.layout,
+		.layout = context.pipeline.layout,
 		.renderPass = context.renderPass,
 		.subpass = 0
 	};
 
-	VK_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineCI, NULL, &pipeline.handle));
+	VK_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineCI, NULL, &context.pipeline.handle));
 
 	// cleanup
 	vkDestroyShaderModule(context.device, vertShaderModule, NULL);

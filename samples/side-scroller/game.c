@@ -1,27 +1,13 @@
 #include "game.h"
 
-#include "components.h"
-
-#define MAX_ENTITIES 100000
-
-typedef struct Entity {
-	TransformComponent transform;
-	MeshComponent mesh;
-} Entity;
-
-typedef struct Scene {
-	Entity entities[MAX_ENTITIES];
-	uint32_t entityCount;
-} Scene;
-
 typedef struct AppState {
 	StWindow window;
-	StRenderer renderer;
 	Scene scene;
 } AppState;
 
 static AppState app = { 0 };
 
+// Helpers
 static StResult sceneAddEntity(Scene* scene, Entity* entity);
 static StResult setScene(Scene* sc);
 
@@ -34,9 +20,9 @@ void run()
 	};
 
 	stCreateWindow(&windowCI, &app.window);
-	stCreateRenderer(&app.window, &app.renderer);
+	stCreateRenderer(&app.window);
 
-	// Load Mesh
+	// Create Mesh
 	float vertices[] = {
 		 0.5f,  0.5f,	1.0f, 0.0f, 0.0f,
 		 0.0f, -0.5f,	0.0f, 1.0f, 0.0f,
@@ -50,7 +36,7 @@ void run()
 	};
 
 	uint32_t myMesh;
-	stLoadMesh(&meshCI, &myMesh);
+	stCreateMesh(&meshCI, &myMesh);
 
 	// Create Entity
 	Entity entity = {
@@ -79,7 +65,7 @@ void run()
 	}
 
 	stDestroyWindow(&app.window);
-	stDestroyRenderer(&app.renderer);
+	stDestroyRenderer();
 }
 
 static StResult sceneAddEntity(Scene* scene, Entity* entity)

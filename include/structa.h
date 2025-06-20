@@ -3,6 +3,6 @@
 
 #include "window.h"
 #include "renderer.h"
-
+#include "scene.h"
 
 #endif
