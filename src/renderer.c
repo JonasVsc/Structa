@@ -7,9 +7,9 @@
 // =============================================================================
 
 #ifdef NDEBUG
-	#define ENABLE_VALIDATION_LAYERS true
-#else
 	#define ENABLE_VALIDATION_LAYERS false
+#else
+	#define ENABLE_VALIDATION_LAYERS true
 #endif
 
 #define VK_CHECK(x)																										\
@@ -52,12 +52,32 @@ typedef struct StDevice {
 	VkQueue presentQueue;
 } StDevice;
 
+typedef struct StSwapchainDetails {
+	VkSurfaceCapabilitiesKHR capabilities;
+	VkPresentModeKHR presentModes[8];
+	uint32_t presentModesCount;
+	VkSurfaceFormatKHR surfaceFormats[10];
+	uint32_t surfaceFormatsCount;
+} StSwapchainDetails;
+
+typedef struct StSwapchain {
+	VkSwapchainKHR handle;
+	uint32_t imageCount;
+	VkImage images[5];
+	VkImageView imageViews[5];
+	VkSurfaceFormatKHR format;
+	VkExtent2D extent;
+} StSwapchain;
+
 typedef struct StRenderer_T {
 	StWindow window;
 	VkInstance instance;
 	VkSurfaceKHR surface;
 	StGPU GPU;
 	StDevice device;
+	StSwapchain swapchain;
+	VkRenderPass renderPass;
+	VkFramebuffer framebuffers[5];
 } StRenderer_T;
 
 // =============================================================================
@@ -68,13 +88,20 @@ static StResult createWindow(const StWindowCreateInfo* createInfo, StWindow* win
 static StResult createInstance(StWindow window, VkInstance* instance);
 static StResult selectGPU(VkInstance instance, VkSurfaceKHR surface, StGPU* GPU);
 static StResult createDevice(StGPU gpu, StDevice* device);
+static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkSurfaceKHR surface, StSwapchain* swapchain);
+static StResult createRenderPass(StDevice device, StSwapchain swapchain, VkRenderPass* renderPass);
+static StResult createFramebuffers(StDevice device, StSwapchain swapchain, VkRenderPass renderPass, VkFramebuffer* framebuffers);
 
 static void destroyWindow(StRenderer renderer);
 static void destroyInstance(StRenderer renderer);
 static void destroySurface(StRenderer renderer);
 static void destroyDevice(StRenderer renderer);
+static void destroySwapchain(StRenderer renderer);
+static void destroyRenderPass(StRenderer renderer);
+static void destroyFramebuffers(StRenderer renderer);
 
-static StResult findQueueFamilies(VkPhysicalDevice gpu, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices);
+static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices);
+static StResult getSwapchainDetails(VkPhysicalDevice GPU, VkSurfaceKHR surface, StSwapchainDetails* swapchainDetails);
 
 // callbacks
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
@@ -96,7 +123,9 @@ StResult stCreateRenderer(const StRendererCreateInfo* createInfo, StRenderer* re
 	SDL_Vulkan_CreateSurface((*renderer)->window.handle, (*renderer)->instance, &(*renderer)->surface);
 	selectGPU((*renderer)->instance, (*renderer)->surface, &(*renderer)->GPU);
 	createDevice((*renderer)->GPU, &(*renderer)->device);
-
+	createSwapchain((*renderer)->window, (*renderer)->GPU, (*renderer)->device, (*renderer)->surface, &(*renderer)->swapchain);
+	createRenderPass((*renderer)->device, (*renderer)->swapchain, &(*renderer)->renderPass);
+	createFramebuffers((*renderer)->device, (*renderer)->swapchain, (*renderer)->renderPass, (*renderer)->framebuffers);
 	return ST_SUCCESS;
 }
 
@@ -107,6 +136,9 @@ void stDestroyRenderer(StRenderer renderer)
 		return;
 	}
 
+	destroyFramebuffers(renderer);
+	destroyRenderPass(renderer);
+	destroySwapchain(renderer);
 	destroyDevice(renderer);
 	destroySurface(renderer);
 	destroyInstance(renderer);
@@ -300,6 +332,195 @@ static StResult createDevice(StGPU GPU, StDevice* device)
 	return ST_SUCCESS;
 }
 
+static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkSurfaceKHR surface, StSwapchain* swapchain)
+{
+	StSwapchainDetails swapchainDetails = { 0 };
+	getSwapchainDetails(GPU.handle, surface, &swapchainDetails);
+
+	// Swapchain Image Count
+	swapchain->imageCount = swapchainDetails.capabilities.minImageCount + 1;
+	swapchain->imageCount = swapchain->imageCount > swapchainDetails.capabilities.maxImageCount ? swapchain->imageCount - 1 : swapchain->imageCount;
+
+	// Swapchain Extent
+	if (swapchainDetails.capabilities.currentExtent.width != UINT32_MAX)
+	{
+		swapchain->extent = swapchainDetails.capabilities.currentExtent;
+	}
+	else
+	{
+		int width, height;
+		SDL_Vulkan_GetDrawableSize(window.handle, &width, &height);
+		swapchain->extent.width = (uint32_t)width;
+		swapchain->extent.height = (uint32_t)height;
+		SDL_clamp(swapchain->extent.width, swapchainDetails.capabilities.minImageExtent.width, swapchainDetails.capabilities.maxImageExtent.width);
+		SDL_clamp(swapchain->extent.height, swapchainDetails.capabilities.minImageExtent.height, swapchainDetails.capabilities.maxImageExtent.height);
+	}
+
+	// Swapchain Surface Format
+	for (uint32_t i = 0; i < swapchainDetails.surfaceFormatsCount; ++i)
+	{
+		if (swapchainDetails.surfaceFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB && swapchainDetails.surfaceFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		{
+			swapchain->format = swapchainDetails.surfaceFormats[i];
+			break;
+		}
+	}
+
+	if (swapchain->format.format == VK_FORMAT_UNDEFINED)
+	{
+		swapchain->format = swapchainDetails.surfaceFormats[0];
+	}
+
+	// Swapchain Present Mode
+	VkPresentModeKHR selectedPresentMode = { 0 };
+	for (uint32_t i = 0; i < swapchainDetails.presentModesCount; ++i)
+	{
+		if (swapchainDetails.presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			selectedPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+			break;
+		}
+	}
+
+	if (selectedPresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+	{
+		selectedPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	VkSwapchainCreateInfoKHR swapchainCI = {
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = surface,
+		.minImageCount = swapchainDetails.capabilities.minImageCount,
+		.imageFormat = swapchain->format.format,
+		.imageColorSpace = swapchain->format.colorSpace,
+		.imageExtent = swapchain->extent,
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.preTransform = swapchainDetails.capabilities.currentTransform,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = selectedPresentMode,
+		.oldSwapchain = VK_NULL_HANDLE
+	};
+
+	bool isExclusive = GPU.familyIndices.graphicsFamily == GPU.familyIndices.presentFamily;
+
+	if (isExclusive)
+	{
+		swapchainCI.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
+	else
+	{
+		uint32_t queueFamilyIndices[] = { GPU.familyIndices.graphicsFamily, GPU.familyIndices.presentFamily };
+		swapchainCI.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		swapchainCI.queueFamilyIndexCount = 2;
+		swapchainCI.pQueueFamilyIndices = queueFamilyIndices;
+	}
+
+	VK_CHECK(vkCreateSwapchainKHR(device.handle, &swapchainCI, NULL, &swapchain->handle));
+
+	vkGetSwapchainImagesKHR(device.handle, swapchain->handle, &swapchain->imageCount, NULL);
+	vkGetSwapchainImagesKHR(device.handle, swapchain->handle, &swapchain->imageCount, &swapchain->images);
+
+	for (uint32_t i = 0; i < swapchain->imageCount; ++i)
+	{
+		VkImageViewCreateInfo imageViewCI = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = swapchain->images[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = swapchain->format.format,
+			.components = {
+				VK_COMPONENT_SWIZZLE_IDENTITY,
+				VK_COMPONENT_SWIZZLE_IDENTITY,
+				VK_COMPONENT_SWIZZLE_IDENTITY,
+				VK_COMPONENT_SWIZZLE_IDENTITY
+			},
+			.subresourceRange = {
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1
+			}
+		};
+
+		VK_CHECK(vkCreateImageView(device.handle, &imageViewCI, NULL, &swapchain->imageViews[i]));
+	}
+
+	return ST_SUCCESS;
+}
+
+static StResult createRenderPass(StDevice device, StSwapchain swapchain, VkRenderPass* renderPass)
+{
+	VkAttachmentDescription colorAttachment = {
+		.format = swapchain.format.format,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+	};
+
+	VkAttachmentReference colorAttachmentRef = {
+		.attachment = 0,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	};
+
+	VkSubpassDescription subpass = {
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &colorAttachmentRef
+	};
+
+	VkSubpassDependency dependency = {
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+	};
+
+	VkAttachmentDescription attachments[] = { colorAttachment };
+
+	VkRenderPassCreateInfo renderPassCI = {
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+		.attachmentCount = 1,
+		.pAttachments = attachments,
+		.subpassCount = 1,
+		.pSubpasses = &subpass,
+		.dependencyCount = 1,
+		.pDependencies = &dependency
+	};
+
+	VK_CHECK(vkCreateRenderPass(device.handle, &renderPassCI, NULL, renderPass));
+
+	return ST_SUCCESS;
+}
+
+static StResult createFramebuffers(StDevice device, StSwapchain swapchain, VkRenderPass renderPass, VkFramebuffer* framebuffers)
+{
+	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+	{
+		VkImageView attachments[] = { swapchain.imageViews[i] };
+
+		VkFramebufferCreateInfo framebufferCI = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = renderPass,
+			.attachmentCount = 1,
+			.pAttachments = attachments,
+			.width = swapchain.extent.width,
+			.height = swapchain.extent.height,
+			.layers = 1
+		};
+
+		VK_CHECK(vkCreateFramebuffer(device.handle, &framebufferCI, NULL, &framebuffers[i]));
+	}
+
+	return ST_SUCCESS;
+}
+
 static void destroyWindow(StRenderer renderer)
 {
 	if (renderer->window.handle == NULL)
@@ -340,13 +561,46 @@ static void destroyDevice(StRenderer renderer)
 	vkDestroyDevice(renderer->device.handle, NULL);
 }
 
-static StResult findQueueFamilies(VkPhysicalDevice gpu, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices)
+static void destroySwapchain(StRenderer renderer)
+{
+	for (uint32_t i = 0; i < renderer->swapchain.imageCount; ++i)
+	{
+		vkDestroyImageView(renderer->device.handle, renderer->swapchain.imageViews[i], NULL);
+	}
+
+	if (renderer->swapchain.handle == NULL)
+	{
+		return;
+	}
+
+	vkDestroySwapchainKHR(renderer->device.handle, renderer->swapchain.handle, NULL);
+}
+
+static void destroyRenderPass(StRenderer renderer)
+{
+	if (renderer->renderPass == NULL)
+	{
+		return;
+	}
+
+	vkDestroyRenderPass(renderer->device.handle, renderer->renderPass, NULL);
+}
+
+static void destroyFramebuffers(StRenderer renderer)
+{
+	for (uint32_t i = 0; i < renderer->swapchain.imageCount; ++i)
+	{
+		vkDestroyFramebuffer(renderer->device.handle, renderer->framebuffers[i], NULL);
+	}
+}
+
+static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices)
 {
 	queueFamilyIndices->graphicsFamily = UINT32_MAX;
 	queueFamilyIndices->presentFamily = UINT32_MAX;
 
 	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queueFamilyCount, NULL);
+	vkGetPhysicalDeviceQueueFamilyProperties(GPU, &queueFamilyCount, NULL);
 
 	if (queueFamilyCount == 0)
 	{
@@ -354,12 +608,12 @@ static StResult findQueueFamilies(VkPhysicalDevice gpu, VkSurfaceKHR surface, St
 	}
 
 	VkQueueFamilyProperties queueFamilies[20] = { 0 };
-	vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queueFamilyCount, queueFamilies);
+	vkGetPhysicalDeviceQueueFamilyProperties(GPU, &queueFamilyCount, queueFamilies);
 	
 	for (uint32_t qIdx = 0; qIdx < queueFamilyCount; ++qIdx)
 	{
 		VkBool32 presentSupport = VK_FALSE;
-		vkGetPhysicalDeviceSurfaceSupportKHR(gpu, qIdx, surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(GPU, qIdx, surface, &presentSupport);
 
 		if (presentSupport == VK_TRUE)
 		{
@@ -378,6 +632,22 @@ static StResult findQueueFamilies(VkPhysicalDevice gpu, VkSurfaceKHR surface, St
 	}
 
 	return ST_ERROR;
+}
+
+static StResult getSwapchainDetails(VkPhysicalDevice GPU, VkSurfaceKHR surface, StSwapchainDetails* swapchainDetails)
+{
+	// capabilities
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(GPU, surface, &swapchainDetails->capabilities);
+
+	// present modes
+	vkGetPhysicalDeviceSurfacePresentModesKHR(GPU, surface, &swapchainDetails->presentModesCount, NULL);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(GPU, surface, &swapchainDetails->presentModesCount, &swapchainDetails->presentModes);
+
+	// formats
+	vkGetPhysicalDeviceSurfaceFormatsKHR(GPU, surface, &swapchainDetails->surfaceFormatsCount, NULL);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(GPU, surface, &swapchainDetails->surfaceFormatsCount, &swapchainDetails->surfaceFormats);
+
+	return ST_SUCCESS;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
