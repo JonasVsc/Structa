@@ -1,43 +1,48 @@
-#ifndef RENDERER_H
-#define RENDERER_H
+#ifndef STRUCTA_RENDERER_H
+#define STRUCTA_RENDERER_H
 
+// =============================================================================
+// Dependencies
+// =============================================================================
 #include "core.h"
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
-#include <vulkan/vk_enum_string_helper.h>
+#include <stdbool.h>
 
-typedef struct StWindow StWindow;
+// =============================================================================
+// Forward Declarations & Opaque Pointers
+// =============================================================================
+typedef struct StRenderer_T* StRenderer;
 
-typedef struct StBufferCreateInfo {
-	VkBufferUsageFlags buffer_usage;
-	size_t buffer_size;
-} StBufferCreateInfo;
+// =============================================================================
+// Public Data Structures
+// =============================================================================
 
-typedef struct StBuffer {
-	VkBuffer buffer;
-	VkDeviceMemory memory;
-} StBuffer;
+typedef struct StWindowCreateInfo {
+	const char* title;
+	int width;
+	int height;
+} StWindowCreateInfo;
 
-typedef struct StRenderableCreateInfo {
-	size_t size;
-	const void* src;
-} StRenderableCreateInfo;
+typedef struct StRendererCreateInfo {
+	const StWindowCreateInfo* windowCreateInfo;
+} StRendererCreateInfo;
 
-typedef struct StRenderable {
-	struct StBuffer vertexBuffer;
-	uint32_t vertexCount;
-	uint32_t draw;
-} StRenderable;
+// =============================================================================
+// Renderer Lifecycle API
+// =============================================================================
 
-typedef struct StRenderer {
-	StWindow* window;
-} StRenderer;
+StResult stCreateRenderer(const StRendererCreateInfo* createInfo, StRenderer* renderer);
 
-StResult stCreateRenderer(StWindow* window, StRenderer* renderer);
-StResult stDestroyRenderer(StRenderer* renderer);
-void stRender();
+void stDestroyRenderer(StRenderer renderer);
 
+// =============================================================================
+// Renderer State & Events API
+// =============================================================================
 
-StResult stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable);
-StResult stRenderBatchPush(StRenderable* renderable);
+bool stShouldClose(StRenderer renderer);
 
-#endif // RENDERER_H
+void stPollEvents(StRenderer renderer);
+
+#endif // STRUCTA_RENDERER_H

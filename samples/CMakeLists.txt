@@ -1,19 +1,8 @@
-
-# Side scroller sample
-add_executable(side-scroller
-	"side-scroller/main.c"
+# Setup sample
+add_executable(sample-setup
+	"setup/main.c"
 )
 
-target_link_libraries(side-scroller 
-	PRIVATE Structa
-)
-
-# Top down sample
-add_executable(top-down
-	"top-down/main.c"
-	"top-down/game.c"
-)
-
-target_link_libraries(top-down 
+target_link_libraries(sample-setup
 	PRIVATE Structa
 )

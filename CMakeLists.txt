@@ -22,10 +22,6 @@ set(SDL_INSTALL_TESTS OFF CACHE BOOL "Disable installing SDL tests")
 
 FetchContent_MakeAvailable(SDL)
 
-set(WINDOW_SRC
-	"src/window.c"
-)
-
 set(RENDERER_SRC
 	"src/renderer.c"
 )
@@ -36,7 +32,6 @@ set(UTILS_SRC
 
 add_library (${PROJECT_NAME} SHARED
 	${RENDERER_SRC}
-	${WINDOW_SRC}
 	${UTILS_SRC}
 )
 
@@ -86,4 +81,25 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:Structa>"
         "$<TARGET_FILE_DIR:Structa>/samples"
+)
+
+# --- Test --- #
+
+enable_testing()
+
+FetchContent_Declare(
+    Unity
+    GIT_REPOSITORY https://github.com/ThrowTheSwitch/Unity.git
+    GIT_TAG        v2.6.1 
+)
+
+FetchContent_MakeAvailable(Unity)
+
+add_subdirectory(tests)
+
+add_custom_command(
+    TARGET Structa POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:Structa>"
+        "$<TARGET_FILE_DIR:Structa>/tests"
 )
