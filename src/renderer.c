@@ -170,8 +170,8 @@ void stDestroyRenderer(StRenderer renderer)
 
 void stRender(StRenderer* renderer)
 {
-	VK_CHECK(vkWaitForFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight], VK_TRUE, UINT64_MAX));
-	VK_CHECK(vkResetFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight]));
+	VK_CHECK(vkWaitForFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight].frameFence, VK_TRUE, UINT64_MAX));
+	VK_CHECK(vkResetFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight].frameFence));
 
 	VK_CHECK(vkAcquireNextImageKHR((*renderer)->device.handle, (*renderer)->swapchain.handle, UINT64_MAX, (*renderer)->syncObjs[(*renderer)->frameInFlight].acquireSemaphore, VK_NULL_HANDLE, &(*renderer)->imageIdx));
 
