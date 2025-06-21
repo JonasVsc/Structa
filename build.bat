@@ -18,5 +18,6 @@ mkdir "%output_directory%"
 pushd "%output_directory%"
     cls
     if %errorlevel% == 0 (cl %msvc_compiler_flags% /LD "%project_directory%\src\experimental\library\console.c" /link %msvc_linker_flags%)
+    if %errorlevel% == 0 (cl %msvc_compiler_flags% /LD "%project_directory%\src\experimental\library\string.c" /link %msvc_linker_flags%)
     if %errorlevel% == 0 (cl %msvc_compiler_flags% "%project_directory%\src\experimental\main.c" /link %msvc_linker_flags% console.lib)
 popd

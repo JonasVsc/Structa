@@ -1,4 +1,4 @@
-#define CONSOLE_EXPORT
+#define CONSOLE_EXPORT 1
 #include "console.h"
 
 #if WINDOWS

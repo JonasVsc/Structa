@@ -20,6 +20,7 @@
 #define INTERNAL static
 #define GLOBAL static
 #define LOCAL static
+#define MAX_U32 0xFFFFFFFF
 
 typedef char s8;
 typedef unsigned char u8;
