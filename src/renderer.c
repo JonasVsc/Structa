@@ -23,6 +23,8 @@
 		}																												\
 	} while (0)
 
+#define MAX_FRAMES_IN_FLIGHT 2
+
 // =============================================================================
 // Dependencies
 // =============================================================================
@@ -41,15 +43,15 @@ typedef struct StQueueFamilyIndices {
 	uint32_t presentFamily;
 } StQueueFamilyIndices;
 
-typedef struct StGPU {
-	VkPhysicalDevice handle;
-	StQueueFamilyIndices familyIndices;
-} StGPU;
-
 typedef struct StDevice {
 	VkDevice handle;
+	VkInstance instance;
+	VkSurfaceKHR surface;
+	VkPhysicalDevice GPU;
+	StQueueFamilyIndices familyIndices;
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
+	VkCommandPool commandPool;
 } StDevice;
 
 typedef struct StSwapchainDetails {
@@ -69,15 +71,22 @@ typedef struct StSwapchain {
 	VkExtent2D extent;
 } StSwapchain;
 
+typedef struct StSyncObjects {
+	VkSemaphore acquireSemaphore;
+	VkSemaphore submitSemaphore;
+	VkFence frameFence;
+} StSyncObjects;
+
 typedef struct StRenderer_T {
 	StWindow window;
-	VkInstance instance;
-	VkSurfaceKHR surface;
-	StGPU GPU;
 	StDevice device;
 	StSwapchain swapchain;
 	VkRenderPass renderPass;
 	VkFramebuffer framebuffers[5];
+	VkCommandBuffer commandBuffers[5];
+	StSyncObjects syncObjs[5];
+	uint32_t frameInFlight;
+	uint32_t imageIdx;
 } StRenderer_T;
 
 // =============================================================================
@@ -85,12 +94,15 @@ typedef struct StRenderer_T {
 // =============================================================================
 
 static StResult createWindow(const StWindowCreateInfo* createInfo, StWindow* window);
-static StResult createInstance(StWindow window, VkInstance* instance);
-static StResult selectGPU(VkInstance instance, VkSurfaceKHR surface, StGPU* GPU);
-static StResult createDevice(StGPU gpu, StDevice* device);
-static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkSurfaceKHR surface, StSwapchain* swapchain);
+static StResult createInstance(StWindow window, StDevice* device);
+static StResult selectGPU(StDevice* device);
+static StResult createDevice(StDevice* device);
+static StResult createSwapchain(StWindow window, StDevice device, StSwapchain* swapchain);
 static StResult createRenderPass(StDevice device, StSwapchain swapchain, VkRenderPass* renderPass);
 static StResult createFramebuffers(StDevice device, StSwapchain swapchain, VkRenderPass renderPass, VkFramebuffer* framebuffers);
+static StResult createCommandPool(StDevice* device);
+static StResult createCommandBuffers(StDevice device, VkCommandBuffer* commandBuffers);
+static StResult createSyncObjects(StDevice device, StSwapchain swapchain, StSyncObjects* syncObjs);
 
 static void destroyWindow(StRenderer renderer);
 static void destroyInstance(StRenderer renderer);
@@ -99,6 +111,8 @@ static void destroyDevice(StRenderer renderer);
 static void destroySwapchain(StRenderer renderer);
 static void destroyRenderPass(StRenderer renderer);
 static void destroyFramebuffers(StRenderer renderer);
+static void destroyCommandPool(StRenderer renderer);
+static void destroySyncObjects(StRenderer renderer);
 
 static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices);
 static StResult getSwapchainDetails(VkPhysicalDevice GPU, VkSurfaceKHR surface, StSwapchainDetails* swapchainDetails);
@@ -119,13 +133,16 @@ StResult stCreateRenderer(const StRendererCreateInfo* createInfo, StRenderer* re
 	}
 
 	createWindow(createInfo->windowCreateInfo, &(*renderer)->window);
-	createInstance((*renderer)->window, &(*renderer)->instance);
-	SDL_Vulkan_CreateSurface((*renderer)->window.handle, (*renderer)->instance, &(*renderer)->surface);
-	selectGPU((*renderer)->instance, (*renderer)->surface, &(*renderer)->GPU);
-	createDevice((*renderer)->GPU, &(*renderer)->device);
-	createSwapchain((*renderer)->window, (*renderer)->GPU, (*renderer)->device, (*renderer)->surface, &(*renderer)->swapchain);
+	createInstance((*renderer)->window, &(*renderer)->device);
+	SDL_Vulkan_CreateSurface((*renderer)->window.handle, (*renderer)->device.instance, &(*renderer)->device.surface);
+	selectGPU(&(*renderer)->device);
+	createDevice(&(*renderer)->device);
+	createSwapchain((*renderer)->window, (*renderer)->device, &(*renderer)->swapchain);
 	createRenderPass((*renderer)->device, (*renderer)->swapchain, &(*renderer)->renderPass);
 	createFramebuffers((*renderer)->device, (*renderer)->swapchain, (*renderer)->renderPass, (*renderer)->framebuffers);
+	createCommandPool(&(*renderer)->device);
+	createCommandBuffers((*renderer)->device, (*renderer)->commandBuffers);
+	createSyncObjects((*renderer)->device, (*renderer)->swapchain, (*renderer)->syncObjs);
 	return ST_SUCCESS;
 }
 
@@ -136,6 +153,10 @@ void stDestroyRenderer(StRenderer renderer)
 		return;
 	}
 
+	vkDeviceWaitIdle(renderer->device.handle);
+
+	destroySyncObjects(renderer);
+	destroyCommandPool(renderer);
 	destroyFramebuffers(renderer);
 	destroyRenderPass(renderer);
 	destroySwapchain(renderer);
@@ -145,6 +166,81 @@ void stDestroyRenderer(StRenderer renderer)
 	destroyWindow(renderer);
 
 	free(renderer);
+}
+
+void stRender(StRenderer* renderer)
+{
+	VK_CHECK(vkWaitForFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight], VK_TRUE, UINT64_MAX));
+	VK_CHECK(vkResetFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight]));
+
+	VK_CHECK(vkAcquireNextImageKHR((*renderer)->device.handle, (*renderer)->swapchain.handle, UINT64_MAX, (*renderer)->syncObjs[(*renderer)->frameInFlight].acquireSemaphore, VK_NULL_HANDLE, &(*renderer)->imageIdx));
+
+	VK_CHECK(vkResetCommandBuffer((*renderer)->commandBuffers[(*renderer)->frameInFlight], 0));
+
+	VkCommandBufferBeginInfo cmdBeginInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+	};
+
+	VK_CHECK(vkBeginCommandBuffer((*renderer)->commandBuffers[(*renderer)->frameInFlight], &cmdBeginInfo));
+
+	VkClearValue clearColor = {
+		.color = {
+			.float32[0] = 0.4f,
+			.float32[1] = 0.8f,
+			.float32[2] = 1.0f,
+			.float32[3] = 1.0f,
+		}
+	};
+
+	VkRenderPassBeginInfo renderBeginInfo = {
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.renderPass = (*renderer)->renderPass,
+		.framebuffer = (*renderer)->framebuffers[(*renderer)->imageIdx],
+		.renderArea = {
+			.offset = {0, 0},
+			.extent = (*renderer)->swapchain.extent
+		},
+		.clearValueCount = 1,
+		.pClearValues = &clearColor
+	};
+
+	vkCmdBeginRenderPass((*renderer)->commandBuffers[(*renderer)->frameInFlight], &renderBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdEndRenderPass((*renderer)->commandBuffers[(*renderer)->frameInFlight]);
+	VK_CHECK(vkEndCommandBuffer((*renderer)->commandBuffers[(*renderer)->frameInFlight]));
+
+
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	VkSemaphore waitSemaphores[] = { (*renderer)->syncObjs[(*renderer)->frameInFlight].acquireSemaphore };
+	VkSemaphore signalSemaphores[] = { (*renderer)->syncObjs[(*renderer)->frameInFlight].submitSemaphore };
+
+	VkSubmitInfo submitInfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = waitSemaphores,
+		.pWaitDstStageMask = waitStages,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &(*renderer)->commandBuffers[(*renderer)->frameInFlight],
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = signalSemaphores
+	};
+
+	VK_CHECK(vkQueueSubmit((*renderer)->device.graphicsQueue, 1, &submitInfo, (*renderer)->syncObjs[(*renderer)->frameInFlight].frameFence));
+
+	VkSwapchainKHR swapchains[] = { (*renderer)->swapchain.handle };
+
+	VkPresentInfoKHR presentInfo = {
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = signalSemaphores,
+		.swapchainCount = 1,
+		.pSwapchains = swapchains,
+		.pImageIndices = &(*renderer)->imageIdx
+	};
+
+	VK_CHECK(vkQueuePresentKHR((*renderer)->device.presentQueue, &presentInfo));
+
+	(*renderer)->frameInFlight = ((*renderer)->frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 bool stShouldClose(StRenderer renderer)
@@ -193,7 +289,7 @@ static StResult createWindow(const StWindowCreateInfo* createInfo, StWindow* win
 	return ST_SUCCESS;
 }
 
-static StResult createInstance(StWindow window, VkInstance* instance)
+static StResult createInstance(StWindow window, StDevice* device)
 {
 	// SDL Extensions
 	uint32_t SDLExtensionsCount = { 0 };
@@ -260,15 +356,15 @@ static StResult createInstance(StWindow window, VkInstance* instance)
 		instanceCI.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugUtilsCI;
 	}
 
-	VK_CHECK(vkCreateInstance(&instanceCI, NULL, instance));
+	VK_CHECK(vkCreateInstance(&instanceCI, NULL, &device->instance));
 
 	return ST_SUCCESS;
 }
 
-static StResult selectGPU(VkInstance instance, VkSurfaceKHR surface, StGPU* GPU)
+static StResult selectGPU(StDevice* device)
 {
 	uint32_t GPUCount = 0;
-	vkEnumeratePhysicalDevices(instance, &GPUCount, NULL);
+	vkEnumeratePhysicalDevices(device->instance, &GPUCount, NULL);
 	
 	if (GPUCount == 0)
 	{
@@ -276,15 +372,15 @@ static StResult selectGPU(VkInstance instance, VkSurfaceKHR surface, StGPU* GPU)
 	}
 
 	VkPhysicalDevice GPUs[10] = { 0 };
-	vkEnumeratePhysicalDevices(instance, &GPUCount, GPUs);
+	vkEnumeratePhysicalDevices(device->instance, &GPUCount, GPUs);
 
 	for (uint32_t GPUIdx = 0; GPUIdx < GPUCount; ++GPUIdx)
 	{
 		StQueueFamilyIndices queueFamilyIndices = { 0 };
-		if (findQueueFamilies(GPUs[GPUIdx], surface, &queueFamilyIndices) == ST_SUCCESS)
+		if (findQueueFamilies(GPUs[GPUIdx], device->surface, &queueFamilyIndices) == ST_SUCCESS)
 		{
-			(*GPU).handle = GPUs[GPUIdx];
-			(*GPU).familyIndices = queueFamilyIndices;
+			device->GPU = GPUs[GPUIdx];
+			device->familyIndices = queueFamilyIndices;
 			return ST_SUCCESS;
 		}
 	}
@@ -292,21 +388,21 @@ static StResult selectGPU(VkInstance instance, VkSurfaceKHR surface, StGPU* GPU)
 	return ST_ERROR_SUPPORTED_GPU_NOT_FOUND;
 }
 
-static StResult createDevice(StGPU GPU, StDevice* device)
+static StResult createDevice(StDevice* device)
 {
-	bool isExclusive = GPU.familyIndices.graphicsFamily == GPU.familyIndices.presentFamily;
+	bool isExclusive = device->familyIndices.graphicsFamily == device->familyIndices.presentFamily;
 
 	float queuePriority = 1.0f;
 	VkDeviceQueueCreateInfo graphicsQueueCI = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.queueFamilyIndex = GPU.familyIndices.graphicsFamily,
+		.queueFamilyIndex = device->familyIndices.graphicsFamily,
 		.queueCount = 1,
 		.pQueuePriorities = &queuePriority
 	};
 
 	VkDeviceQueueCreateInfo presentQueueCI = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.queueFamilyIndex = GPU.familyIndices.graphicsFamily,
+		.queueFamilyIndex = device->familyIndices.graphicsFamily,
 		.queueCount = 1,
 		.pQueuePriorities = &queuePriority
 	};
@@ -324,18 +420,18 @@ static StResult createDevice(StGPU GPU, StDevice* device)
 		.pEnabledFeatures = NULL
 	};
 
-	VK_CHECK(vkCreateDevice(GPU.handle, &deviceCI, NULL, &device->handle));
+	VK_CHECK(vkCreateDevice(device->GPU, &deviceCI, NULL, &device->handle));
 
-	vkGetDeviceQueue(device->handle, GPU.familyIndices.graphicsFamily, 0, &device->graphicsQueue);
-	vkGetDeviceQueue(device->handle, GPU.familyIndices.presentFamily, 0, &device->presentQueue);
+	vkGetDeviceQueue(device->handle, device->familyIndices.graphicsFamily, 0, &device->graphicsQueue);
+	vkGetDeviceQueue(device->handle, device->familyIndices.presentFamily, 0, &device->presentQueue);
 
 	return ST_SUCCESS;
 }
 
-static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkSurfaceKHR surface, StSwapchain* swapchain)
+static StResult createSwapchain(StWindow window, StDevice device, StSwapchain* swapchain)
 {
 	StSwapchainDetails swapchainDetails = { 0 };
-	getSwapchainDetails(GPU.handle, surface, &swapchainDetails);
+	getSwapchainDetails(device.GPU, device.surface, &swapchainDetails);
 
 	// Swapchain Image Count
 	swapchain->imageCount = swapchainDetails.capabilities.minImageCount + 1;
@@ -389,7 +485,7 @@ static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkS
 
 	VkSwapchainCreateInfoKHR swapchainCI = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.surface = surface,
+		.surface = device.surface,
 		.minImageCount = swapchainDetails.capabilities.minImageCount,
 		.imageFormat = swapchain->format.format,
 		.imageColorSpace = swapchain->format.colorSpace,
@@ -402,7 +498,7 @@ static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkS
 		.oldSwapchain = VK_NULL_HANDLE
 	};
 
-	bool isExclusive = GPU.familyIndices.graphicsFamily == GPU.familyIndices.presentFamily;
+	bool isExclusive = device.familyIndices.graphicsFamily == device.familyIndices.presentFamily;
 
 	if (isExclusive)
 	{
@@ -410,7 +506,7 @@ static StResult createSwapchain(StWindow window, StGPU GPU, StDevice device, VkS
 	}
 	else
 	{
-		uint32_t queueFamilyIndices[] = { GPU.familyIndices.graphicsFamily, GPU.familyIndices.presentFamily };
+		uint32_t queueFamilyIndices[] = { device.familyIndices.graphicsFamily, device.familyIndices.presentFamily };
 		swapchainCI.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 		swapchainCI.queueFamilyIndexCount = 2;
 		swapchainCI.pQueueFamilyIndices = queueFamilyIndices;
@@ -521,6 +617,59 @@ static StResult createFramebuffers(StDevice device, StSwapchain swapchain, VkRen
 	return ST_SUCCESS;
 }
 
+static StResult createCommandPool(StDevice* device)
+{
+	VkCommandPoolCreateInfo poolCI = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		.queueFamilyIndex = device->familyIndices.graphicsFamily
+	};
+
+	VK_CHECK(vkCreateCommandPool(device->handle, &poolCI, NULL, &device->commandPool));
+
+	return ST_SUCCESS;
+}
+
+static StResult createCommandBuffers(StDevice device, VkCommandBuffer* commandBuffers)
+{
+	VkCommandBufferAllocateInfo commandBufferCI = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandPool = device.commandPool,
+		.commandBufferCount = MAX_FRAMES_IN_FLIGHT
+	};
+
+
+	VK_CHECK(vkAllocateCommandBuffers(device.handle, &commandBufferCI, commandBuffers));
+
+	return ST_SUCCESS;
+}
+
+StResult createSyncObjects(StDevice device, StSwapchain swapchain, StSyncObjects* syncObjs)
+{
+	VkSemaphoreCreateInfo semaphoreCI = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+	};
+
+	VkFenceCreateInfo fenceCI = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT
+	};
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		VK_CHECK(vkCreateSemaphore(device.handle, &semaphoreCI, NULL, &syncObjs[i].acquireSemaphore));
+		VK_CHECK(vkCreateFence(device.handle, &fenceCI, NULL, &syncObjs[i].frameFence));
+	}
+
+	for (int i = 0; i < swapchain.imageCount; i++)
+	{
+		VK_CHECK(vkCreateSemaphore(device.handle, &semaphoreCI, NULL, &syncObjs[i].submitSemaphore));
+	}
+
+	return ST_SUCCESS;
+}
+
 static void destroyWindow(StRenderer renderer)
 {
 	if (renderer->window.handle == NULL)
@@ -533,22 +682,22 @@ static void destroyWindow(StRenderer renderer)
 
 static void destroyInstance(StRenderer renderer)
 {
-	if (renderer->instance == NULL)
+	if (renderer->device.instance == NULL)
 	{
 		return;
 	}
 
-	vkDestroyInstance(renderer->instance, NULL);
+	vkDestroyInstance(renderer->device.instance, NULL);
 }
 
 static void destroySurface(StRenderer renderer)
 {
-	if (renderer->surface == NULL)
+	if (renderer->device.surface == NULL)
 	{
 		return;
 	}
 
-	vkDestroySurfaceKHR(renderer->instance, renderer->surface, NULL);
+	vkDestroySurfaceKHR(renderer->device.instance, renderer->device.surface, NULL);
 }
 
 static void destroyDevice(StRenderer renderer)
@@ -594,6 +743,36 @@ static void destroyFramebuffers(StRenderer renderer)
 	}
 }
 
+static void destroyCommandPool(StRenderer renderer)
+{
+	if (renderer->device.commandPool == NULL)
+	{
+		return;
+	}
+
+	vkDestroyCommandPool(renderer->device.handle, renderer->device.commandPool, NULL);
+}
+
+static void destroySyncObjects(StRenderer renderer)
+{
+	if (renderer->syncObjs->submitSemaphore == NULL)
+	{
+		return;
+	}
+
+	for (uint32_t i = 0; i < renderer->swapchain.imageCount; ++i)
+	{
+		vkDestroySemaphore(renderer->device.handle, renderer->syncObjs[i].submitSemaphore, NULL);
+	}
+
+	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		vkDestroySemaphore(renderer->device.handle, renderer->syncObjs[i].acquireSemaphore, NULL);
+		vkDestroyFence(renderer->device.handle, renderer->syncObjs[i].frameFence, NULL);
+	}
+
+}
+
 static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices)
 {
 	queueFamilyIndices->graphicsFamily = UINT32_MAX;
@@ -604,7 +783,7 @@ static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, St
 
 	if (queueFamilyCount == 0)
 	{
-		return;
+		return ST_SUCCESS;
 	}
 
 	VkQueueFamilyProperties queueFamilies[20] = { 0 };
