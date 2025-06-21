@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 
 	while (!stShouldClose(renderer))
 	{
-		stRender(&renderer);
+		stRender(renderer);
 		stPollEvents(renderer);
 	}
 

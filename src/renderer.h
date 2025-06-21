@@ -41,7 +41,7 @@ void stDestroyRenderer(StRenderer renderer);
 // Renderer State & Events API
 // =============================================================================
 
-void stRender(StRenderer* renderer);
+void stRender(StRenderer renderer);
 
 bool stShouldClose(StRenderer renderer);
 

@@ -168,20 +168,20 @@ void stDestroyRenderer(StRenderer renderer)
 	free(renderer);
 }
 
-void stRender(StRenderer* renderer)
+void stRender(StRenderer renderer)
 {
-	VK_CHECK(vkWaitForFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight].frameFence, VK_TRUE, UINT64_MAX));
-	VK_CHECK(vkResetFences((*renderer)->device.handle, 1, &(*renderer)->syncObjs[(*renderer)->frameInFlight].frameFence));
+	VK_CHECK(vkWaitForFences(renderer->device.handle, 1, &renderer->syncObjs[renderer->frameInFlight].frameFence, VK_TRUE, UINT64_MAX));
+	VK_CHECK(vkResetFences(renderer->device.handle, 1, &renderer->syncObjs[renderer->frameInFlight].frameFence));
 
-	VK_CHECK(vkAcquireNextImageKHR((*renderer)->device.handle, (*renderer)->swapchain.handle, UINT64_MAX, (*renderer)->syncObjs[(*renderer)->frameInFlight].acquireSemaphore, VK_NULL_HANDLE, &(*renderer)->imageIdx));
+	VK_CHECK(vkAcquireNextImageKHR(renderer->device.handle, renderer->swapchain.handle, UINT64_MAX, renderer->syncObjs[renderer->frameInFlight].acquireSemaphore, VK_NULL_HANDLE, &renderer->imageIdx));
 
-	VK_CHECK(vkResetCommandBuffer((*renderer)->commandBuffers[(*renderer)->frameInFlight], 0));
+	VK_CHECK(vkResetCommandBuffer(renderer->commandBuffers[renderer->frameInFlight], 0));
 
 	VkCommandBufferBeginInfo cmdBeginInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
-	VK_CHECK(vkBeginCommandBuffer((*renderer)->commandBuffers[(*renderer)->frameInFlight], &cmdBeginInfo));
+	VK_CHECK(vkBeginCommandBuffer(renderer->commandBuffers[renderer->frameInFlight], &cmdBeginInfo));
 
 	VkClearValue clearColor = {
 		.color = {
@@ -194,25 +194,25 @@ void stRender(StRenderer* renderer)
 
 	VkRenderPassBeginInfo renderBeginInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass = (*renderer)->renderPass,
-		.framebuffer = (*renderer)->framebuffers[(*renderer)->imageIdx],
+		.renderPass = renderer->renderPass,
+		.framebuffer = renderer->framebuffers[renderer->imageIdx],
 		.renderArea = {
 			.offset = {0, 0},
-			.extent = (*renderer)->swapchain.extent
+			.extent = renderer->swapchain.extent
 		},
 		.clearValueCount = 1,
 		.pClearValues = &clearColor
 	};
 
-	vkCmdBeginRenderPass((*renderer)->commandBuffers[(*renderer)->frameInFlight], &renderBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(renderer->commandBuffers[renderer->frameInFlight], &renderBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdEndRenderPass((*renderer)->commandBuffers[(*renderer)->frameInFlight]);
-	VK_CHECK(vkEndCommandBuffer((*renderer)->commandBuffers[(*renderer)->frameInFlight]));
+	vkCmdEndRenderPass(renderer->commandBuffers[renderer->frameInFlight]);
+	VK_CHECK(vkEndCommandBuffer(renderer->commandBuffers[renderer->frameInFlight]));
 
 
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore waitSemaphores[] = { (*renderer)->syncObjs[(*renderer)->frameInFlight].acquireSemaphore };
-	VkSemaphore signalSemaphores[] = { (*renderer)->syncObjs[(*renderer)->frameInFlight].submitSemaphore };
+	VkSemaphore waitSemaphores[] = { renderer->syncObjs[renderer->frameInFlight].acquireSemaphore };
+	VkSemaphore signalSemaphores[] = { renderer->syncObjs[renderer->frameInFlight].submitSemaphore };
 
 	VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -220,14 +220,14 @@ void stRender(StRenderer* renderer)
 		.pWaitSemaphores = waitSemaphores,
 		.pWaitDstStageMask = waitStages,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &(*renderer)->commandBuffers[(*renderer)->frameInFlight],
+		.pCommandBuffers = &renderer->commandBuffers[renderer->frameInFlight],
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = signalSemaphores
 	};
 
-	VK_CHECK(vkQueueSubmit((*renderer)->device.graphicsQueue, 1, &submitInfo, (*renderer)->syncObjs[(*renderer)->frameInFlight].frameFence));
+	VK_CHECK(vkQueueSubmit(renderer->device.graphicsQueue, 1, &submitInfo, renderer->syncObjs[renderer->frameInFlight].frameFence));
 
-	VkSwapchainKHR swapchains[] = { (*renderer)->swapchain.handle };
+	VkSwapchainKHR swapchains[] = { renderer->swapchain.handle };
 
 	VkPresentInfoKHR presentInfo = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -235,12 +235,12 @@ void stRender(StRenderer* renderer)
 		.pWaitSemaphores = signalSemaphores,
 		.swapchainCount = 1,
 		.pSwapchains = swapchains,
-		.pImageIndices = &(*renderer)->imageIdx
+		.pImageIndices = &renderer->imageIdx
 	};
 
-	VK_CHECK(vkQueuePresentKHR((*renderer)->device.presentQueue, &presentInfo));
+	VK_CHECK(vkQueuePresentKHR(renderer->device.presentQueue, &presentInfo));
 
-	(*renderer)->frameInFlight = ((*renderer)->frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
+	renderer->frameInFlight = (renderer->frameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 bool stShouldClose(StRenderer renderer)
