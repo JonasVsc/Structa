@@ -14,10 +14,17 @@
 // Forward Declarations & Opaque Pointers
 // =============================================================================
 typedef struct StRenderer_T* StRenderer;
+typedef struct StRenderable_T* StRenderable;
 
 // =============================================================================
 // Public Data Structures
 // =============================================================================
+
+typedef struct StRenderableCreateInfo {
+	size_t size;
+	const void* src;
+} StRenderableCreateInfo;
+
 
 typedef struct StWindowCreateInfo {
 	const char* title;
@@ -46,5 +53,7 @@ void stRender(StRenderer renderer);
 bool stShouldClose(StRenderer renderer);
 
 void stPollEvents(StRenderer renderer);
+
+StResult stCreateRenderable(StRenderer renderer, const StRenderableCreateInfo* createInfo, StRenderable* renderable);
 
 #endif // STRUCTA_RENDERER_H

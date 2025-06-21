@@ -6,3 +6,12 @@ add_executable(sample-setup
 target_link_libraries(sample-setup
 	PRIVATE Structa
 )
+
+# Renderable sample
+add_executable(sample-renderable
+	"renderable/main.c"
+)
+
+target_link_libraries(sample-renderable
+	PRIVATE Structa
+)

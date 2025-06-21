@@ -24,13 +24,16 @@
 	} while (0)
 
 #define MAX_FRAMES_IN_FLIGHT 2
+#define MAX_RENDERABLES 1024
 
 // =============================================================================
 // Dependencies
 // =============================================================================
 #include <vulkan/vulkan.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef struct StWindow {
 	SDL_Window* handle;
@@ -77,6 +80,27 @@ typedef struct StSyncObjects {
 	VkFence frameFence;
 } StSyncObjects;
 
+typedef struct Vertex {
+	float position[2];
+	float color[3];
+} Vertex;
+
+typedef struct StPipeline {
+	VkPipeline handle;
+	VkPipelineLayout layout;
+} StPipeline;
+
+typedef struct StRenderable_T {
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	uint32_t vertexCount;
+} StRenderable_T;
+
+typedef struct StRenderablesManager {
+	StRenderable_T pool[MAX_RENDERABLES];
+	uint32_t count;
+} StRenderablesManager;
+
 typedef struct StRenderer_T {
 	StWindow window;
 	StDevice device;
@@ -85,9 +109,14 @@ typedef struct StRenderer_T {
 	VkFramebuffer framebuffers[5];
 	VkCommandBuffer commandBuffers[5];
 	StSyncObjects syncObjs[5];
+	StPipeline pipeline;
 	uint32_t frameInFlight;
 	uint32_t imageIdx;
+
+	StRenderablesManager renderablesManager;
 } StRenderer_T;
+
+
 
 // =============================================================================
 // Helpers
@@ -103,6 +132,7 @@ static StResult createFramebuffers(StDevice device, StSwapchain swapchain, VkRen
 static StResult createCommandPool(StDevice* device);
 static StResult createCommandBuffers(StDevice device, VkCommandBuffer* commandBuffers);
 static StResult createSyncObjects(StDevice device, StSwapchain swapchain, StSyncObjects* syncObjs);
+static StResult createPipeline(StDevice device, VkRenderPass renderPass, StPipeline* pipeline);
 
 static void destroyWindow(StRenderer renderer);
 static void destroyInstance(StRenderer renderer);
@@ -113,9 +143,13 @@ static void destroyRenderPass(StRenderer renderer);
 static void destroyFramebuffers(StRenderer renderer);
 static void destroyCommandPool(StRenderer renderer);
 static void destroySyncObjects(StRenderer renderer);
+static void destroyPipeline(StRenderer renderer);
+static void destroyRenderables(StRenderer renderer);
 
 static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices);
 static StResult getSwapchainDetails(VkPhysicalDevice GPU, VkSurfaceKHR surface, StSwapchainDetails* swapchainDetails);
+static uint32_t findMemoryType(VkPhysicalDevice GPU, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+static const char* readBinaryFile(const char* path, size_t* fileSize);
 
 // callbacks
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
@@ -143,6 +177,7 @@ StResult stCreateRenderer(const StRendererCreateInfo* createInfo, StRenderer* re
 	createCommandPool(&(*renderer)->device);
 	createCommandBuffers((*renderer)->device, (*renderer)->commandBuffers);
 	createSyncObjects((*renderer)->device, (*renderer)->swapchain, (*renderer)->syncObjs);
+	createPipeline((*renderer)->device, (*renderer)->renderPass, &(*renderer)->pipeline);
 	return ST_SUCCESS;
 }
 
@@ -155,6 +190,8 @@ void stDestroyRenderer(StRenderer renderer)
 
 	vkDeviceWaitIdle(renderer->device.handle);
 
+	destroyRenderables(renderer);
+	destroyPipeline(renderer);
 	destroySyncObjects(renderer);
 	destroyCommandPool(renderer);
 	destroyFramebuffers(renderer);
@@ -205,6 +242,33 @@ void stRender(StRenderer renderer)
 	};
 
 	vkCmdBeginRenderPass(renderer->commandBuffers[renderer->frameInFlight], &renderBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(renderer->commandBuffers[renderer->frameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline.handle);
+
+	VkViewport viewport = {
+		.x = 0,
+		.y = 0,
+		.width = (float)renderer->swapchain.extent.width,
+		.height = (float)renderer->swapchain.extent.height,
+		.minDepth = 0,
+		.maxDepth = 1
+	};
+
+	VkRect2D scissor = {
+		.offset = {0, 0},
+		.extent = renderer->swapchain.extent,
+	};
+
+	vkCmdSetViewport(renderer->commandBuffers[renderer->frameInFlight], 0, 1, &viewport);
+	vkCmdSetScissor(renderer->commandBuffers[renderer->frameInFlight], 0, 1, &scissor);
+
+	for (uint32_t i = 0; i < renderer->renderablesManager.count; ++i)
+	{
+		VkBuffer vertexBuffers[] = { renderer->renderablesManager.pool[i].vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(renderer->commandBuffers[renderer->frameInFlight], 0, 1, vertexBuffers, offsets);
+		vkCmdDraw(renderer->commandBuffers[renderer->frameInFlight], renderer->renderablesManager.pool[i].vertexCount, 1, 0, 0);
+	}
 
 	vkCmdEndRenderPass(renderer->commandBuffers[renderer->frameInFlight]);
 	VK_CHECK(vkEndCommandBuffer(renderer->commandBuffers[renderer->frameInFlight]));
@@ -268,6 +332,44 @@ void stPollEvents(StRenderer renderer)
 			renderer->window.close = true;
 		}
 	}
+}
+
+StResult stCreateRenderable(StRenderer renderer, const StRenderableCreateInfo* createInfo, StRenderable* renderable)
+{
+	*renderable = &renderer->renderablesManager.pool[renderer->renderablesManager.count];
+	VkBufferCreateInfo bufferCI = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		.queueFamilyIndexCount = 1,
+		.pQueueFamilyIndices = renderer->device.familyIndices.graphicsFamily,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.size = (VkDeviceSize)createInfo->size
+	};
+
+	VK_CHECK(vkCreateBuffer(renderer->device.handle, &bufferCI, NULL, &(*renderable)->vertexBuffer));
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(renderer->device.handle, (*renderable)->vertexBuffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = findMemoryType(renderer->device.GPU, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+	};
+
+	VK_CHECK(vkAllocateMemory(renderer->device.handle, &allocInfo, NULL, &(*renderable)->vertexBufferMemory));
+	vkBindBufferMemory(renderer->device.handle, (*renderable)->vertexBuffer, (*renderable)->vertexBufferMemory, 0);
+
+	// Map memory
+	void* data;
+	vkMapMemory(renderer->device.handle, (*renderable)->vertexBufferMemory, 0, (VkDeviceSize)createInfo->size, 0, &data);
+		memcpy(data, createInfo->src, createInfo->size);
+	vkUnmapMemory(renderer->device.handle, (*renderable)->vertexBufferMemory);
+
+	(*renderable)->vertexCount = (createInfo->size) / sizeof(Vertex);
+	
+	renderer->renderablesManager.count++;
+	return ST_SUCCESS;
 }
 
 // =============================================================================
@@ -670,6 +772,166 @@ StResult createSyncObjects(StDevice device, StSwapchain swapchain, StSyncObjects
 	return ST_SUCCESS;
 }
 
+StResult createPipeline(StDevice device, VkRenderPass renderPass, StPipeline* pipeline)
+{
+	size_t vertShaderSize;
+	const char* vertShaderCode = readBinaryFile("default.vert.spv", &vertShaderSize);
+
+	size_t fragShaderSize;
+	const char* fragShaderCode = readBinaryFile("default.frag.spv", &fragShaderSize);
+
+	VkShaderModuleCreateInfo shaderModuleCI = {
+			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.codeSize = vertShaderSize,
+			.pCode = (const uint32_t*)vertShaderCode
+	};
+
+	VkShaderModule vertShaderModule;
+	VK_CHECK(vkCreateShaderModule(device.handle, &shaderModuleCI, NULL, &vertShaderModule));
+
+	shaderModuleCI.codeSize = fragShaderSize;
+	shaderModuleCI.pCode = (const uint32_t*)fragShaderCode;
+
+	VkShaderModule fragShaderModule;
+	VK_CHECK(vkCreateShaderModule(device.handle, &shaderModuleCI, NULL, &fragShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertShaderStageCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_VERTEX_BIT,
+		.module = vertShaderModule,
+		.pName = "main"
+	};
+
+	VkPipelineShaderStageCreateInfo fragShaderStageCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+		.module = fragShaderModule,
+		.pName = "main"
+	};
+
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageCI, fragShaderStageCI };
+
+	VkVertexInputBindingDescription bindingDescriptions = {
+		.binding = 0,
+		.stride = sizeof(Vertex),
+		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+	};
+
+	VkVertexInputAttributeDescription attributeDescriptions[2];
+
+	attributeDescriptions[0].location = 0;
+	attributeDescriptions[0].binding = 0;
+	attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+	attributeDescriptions[1].location = 1;
+	attributeDescriptions[1].binding = 0;
+	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+	VkPipelineVertexInputStateCreateInfo vertexInputCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &bindingDescriptions,
+		.vertexAttributeDescriptionCount = 2,
+		.pVertexAttributeDescriptions = &attributeDescriptions
+	};
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		.primitiveRestartEnable = VK_FALSE
+	};
+
+	VkDynamicState dynamicStates[2] = {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+
+	VkPipelineDynamicStateCreateInfo dynamicStateCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.dynamicStateCount = 2,
+		.pDynamicStates = dynamicStates
+	};
+
+	VkPipelineViewportStateCreateInfo viewportState = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.viewportCount = 1,
+		.scissorCount = 1
+	};
+
+	VkPipelineRasterizationStateCreateInfo rasterizer = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.depthClampEnable = VK_FALSE,
+		.rasterizerDiscardEnable = VK_FALSE,
+		.polygonMode = VK_POLYGON_MODE_FILL,
+		.cullMode = VK_CULL_MODE_NONE,
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.depthBiasEnable = VK_FALSE,
+		.depthBiasConstantFactor = 0.0f, // Optional
+		.depthBiasClamp = 0.0f, // Optional
+		.depthBiasSlopeFactor = 0.0f, // Optional
+		.lineWidth = 1.0f
+	};
+
+	VkPipelineMultisampleStateCreateInfo multisampling = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+		.sampleShadingEnable = VK_FALSE,
+		.minSampleShading = 1.0f, // Optional
+		.pSampleMask = NULL, // Optional
+		.alphaToCoverageEnable = VK_FALSE, // Optional
+		.alphaToOneEnable = VK_FALSE // Optional
+	};
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {
+		.blendEnable = VK_FALSE,
+		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+	};
+
+	VkPipelineColorBlendStateCreateInfo colorBlendCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.logicOpEnable = VK_FALSE,
+		.logicOp = VK_LOGIC_OP_COPY, // Optional
+		.attachmentCount = 1,
+		.pAttachments = &colorBlendAttachment
+	};
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCI = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	};
+
+	VK_CHECK(vkCreatePipelineLayout(device.handle, &pipelineLayoutCI, NULL, &pipeline->layout));
+
+	VkGraphicsPipelineCreateInfo pipelineCI = {
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount = 2,
+		.pStages = shaderStages,
+		.pVertexInputState = &vertexInputCI,
+		.pInputAssemblyState = &inputAssemblyCI,
+		.pViewportState = &viewportState,
+		.pRasterizationState = &rasterizer,
+		.pMultisampleState = &multisampling,
+		.pDepthStencilState = NULL, // Optional
+		.pColorBlendState = &colorBlendCI,
+		.pDynamicState = &dynamicStateCI,
+		.layout = pipeline->layout,
+		.renderPass = renderPass,
+		.subpass = 0
+	};
+
+	VK_CHECK(vkCreateGraphicsPipelines(device.handle, VK_NULL_HANDLE, 1, &pipelineCI, NULL, &pipeline->handle));
+
+	// cleanup
+	vkDestroyShaderModule(device.handle, vertShaderModule, NULL);
+	vkDestroyShaderModule(device.handle, fragShaderModule, NULL);
+
+	free((char*)vertShaderCode);
+	free((char*)fragShaderCode);
+
+	return ST_SUCCESS;
+}
+
 static void destroyWindow(StRenderer renderer)
 {
 	if (renderer->window.handle == NULL)
@@ -773,6 +1035,26 @@ static void destroySyncObjects(StRenderer renderer)
 
 }
 
+static void destroyPipeline(StRenderer renderer)
+{
+	if (renderer->pipeline.handle == NULL)
+	{
+		return;
+	}
+
+	vkDestroyPipelineLayout(renderer->device.handle, renderer->pipeline.layout, NULL);
+	vkDestroyPipeline(renderer->device.handle, renderer->pipeline.handle, NULL);
+}
+
+void destroyRenderables(StRenderer renderer)
+{
+	for (uint32_t i = 0; i < renderer->renderablesManager.count; ++i)
+	{
+		vkDestroyBuffer(renderer->device.handle, renderer->renderablesManager.pool[i].vertexBuffer, NULL);
+		vkFreeMemory(renderer->device.handle, renderer->renderablesManager.pool[i].vertexBufferMemory, NULL);
+	}
+}
+
 static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, StQueueFamilyIndices* queueFamilyIndices)
 {
 	queueFamilyIndices->graphicsFamily = UINT32_MAX;
@@ -827,6 +1109,47 @@ static StResult getSwapchainDetails(VkPhysicalDevice GPU, VkSurfaceKHR surface, 
 	vkGetPhysicalDeviceSurfaceFormatsKHR(GPU, surface, &swapchainDetails->surfaceFormatsCount, &swapchainDetails->surfaceFormats);
 
 	return ST_SUCCESS;
+}
+
+static uint32_t findMemoryType(VkPhysicalDevice GPU, uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(GPU, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+	{
+		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+		{
+			return i;
+		}
+	}
+
+	return 0;
+}
+
+static const char* readBinaryFile(const char* path, size_t* fileSize)
+{
+	SDL_RWops* file = SDL_RWFromFile(path, "r+b");
+	assert(file != NULL && "failed open shader file");
+
+	*fileSize = SDL_RWsize(file);
+	if (*fileSize < 0)
+		fprintf(stderr, "SDL_RWsize() failed: %s", SDL_GetError());
+
+	char* buffer = (char*)malloc(*fileSize * sizeof(char));
+
+	size_t bytesRead = SDL_RWread(file, buffer, 1, *fileSize);
+	if (bytesRead != *fileSize)
+	{
+		SDL_RWclose(file);
+		fprintf(stderr, "SDL_RWread() failed to read the whole file: %s", SDL_GetError());
+	}
+	else
+	{
+		SDL_RWclose(file);
+	}
+
+	return buffer;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
