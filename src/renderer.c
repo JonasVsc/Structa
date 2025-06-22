@@ -1195,6 +1195,8 @@ TransformPushConstant transformToPushConstant(const TransformComponent* transfor
 	mat4 model;
 	glm_mat4_identity(model);
 	
+	glm_translate(model, transform->position);
+
 	mat4 rotation;
 	glm_euler_xyz(transform->rotation, rotation);
 	glm_mul(model, rotation, model);
