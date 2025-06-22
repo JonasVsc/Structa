@@ -2,6 +2,11 @@
 
 #define MAX_ENTITIES 1024
 
+typedef struct StRenderableInterface {
+	TransformComponent transform;
+	bool transformDirty;
+} StRenderableInterface;
+
 typedef struct StEntitiesManager {
 	StRenderable renderable[MAX_ENTITIES];
 	uint32_t count;
@@ -57,4 +62,25 @@ StResult stCreateEntity(const StEntityCreateInfo* createInfo, EntityID* ID)
 void stDestroyEntity(EntityID ID)
 {
 
+}
+
+void stTransformSetPosition(EntityID ID, vec3 pos)
+{
+	StRenderableInterface* interface = (StRenderableInterface*)gb.entities.renderable[ID];
+	glm_vec3_copy(pos, interface->transform.position);
+	interface->transformDirty = true;
+}
+
+void stTransformSetRotation(EntityID ID, vec3 rot)
+{
+	StRenderableInterface* interface = (StRenderableInterface*)gb.entities.renderable[ID];
+	glm_vec3_copy(rot, interface->transform.rotation);
+	interface->transformDirty = true;
+}
+
+void stTransformSetScale(EntityID ID, vec3 sc)
+{
+	StRenderableInterface* interface = (StRenderableInterface*)gb.entities.renderable[ID];
+	glm_vec3_copy(sc, interface->transform.scale);
+	interface->transformDirty = true;
 }

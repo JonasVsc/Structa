@@ -97,9 +97,9 @@ typedef struct TransformPushConstant {
 
 typedef struct StRenderable_T {
 	TransformComponent transform;
-	TransformPushConstant pushConstant;
 	bool transformDirty;
 
+	TransformPushConstant pushConstant;
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
 	uint32_t vertexCount;
