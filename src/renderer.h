@@ -1,43 +1,72 @@
-#ifndef RENDERER_H
-#define RENDERER_H
+#ifndef STRUCTA_RENDERER_H
+#define STRUCTA_RENDERER_H
 
+// =============================================================================
+// Dependencies
+// =============================================================================
 #include "core.h"
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
-#include <vulkan/vk_enum_string_helper.h>
+#include <cglm/cglm.h>
+#include <stdbool.h>
 
-typedef struct StWindow StWindow;
+// =============================================================================
+// Forward Declarations & Opaque Pointers
+// =============================================================================
+typedef struct StRenderer_T* StRenderer;
+typedef struct StRenderable_T* StRenderable;
 
-typedef struct StBufferCreateInfo {
-	VkBufferUsageFlags buffer_usage;
-	size_t buffer_size;
-} StBufferCreateInfo;
+// =============================================================================
+// Public Data Structures
+// =============================================================================
 
-typedef struct StBuffer {
-	VkBuffer buffer;
-	VkDeviceMemory memory;
-} StBuffer;
+typedef struct TransformCreateInfo {
+	vec3 initialPosition;
+	vec3 initialRotation;
+	vec3 initialScale;
+} TransformCreateInfo;
+
+typedef struct TransformComponent {
+	vec3 position;
+	vec3 rotation;
+	vec3 scale;
+} TransformComponent;
 
 typedef struct StRenderableCreateInfo {
+	const TransformCreateInfo* transformCreateInfo;
 	size_t size;
 	const void* src;
 } StRenderableCreateInfo;
 
-typedef struct StRenderable {
-	struct StBuffer vertexBuffer;
-	uint32_t vertexCount;
-	uint32_t draw;
-} StRenderable;
+typedef struct StWindowCreateInfo {
+	const char* title;
+	int width;
+	int height;
+} StWindowCreateInfo;
 
-typedef struct StRenderer {
-	StWindow* window;
-} StRenderer;
+typedef struct StRendererCreateInfo {
+	const StWindowCreateInfo* windowCreateInfo;
+} StRendererCreateInfo;
 
-StResult stCreateRenderer(StWindow* window, StRenderer* renderer);
-StResult stDestroyRenderer(StRenderer* renderer);
-void stRender();
+// =============================================================================
+// Renderer Lifecycle API
+// =============================================================================
 
+StResult stCreateRenderer(const StRendererCreateInfo* createInfo, StRenderer* renderer);
 
-StResult stCreateRenderable(const StRenderableCreateInfo* createInfo, StRenderable* renderable);
-StResult stRenderBatchPush(StRenderable* renderable);
+void stDestroyRenderer(StRenderer renderer);
 
-#endif // RENDERER_H
+// =============================================================================
+// Renderer State & Events API
+// =============================================================================
+
+void stRender(StRenderer renderer);
+
+bool stShouldClose(StRenderer renderer);
+
+void stPollEvents(StRenderer renderer);
+
+StResult stCreateRenderable(StRenderer renderer, const StRenderableCreateInfo* createInfo, StRenderable* renderable);
+
+#endif // STRUCTA_RENDERER_H

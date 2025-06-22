@@ -22,9 +22,13 @@ set(SDL_INSTALL_TESTS OFF CACHE BOOL "Disable installing SDL tests")
 
 FetchContent_MakeAvailable(SDL)
 
-set(WINDOW_SRC
-	"src/window.c"
+FetchContent_Declare(
+    CGLM
+    GIT_REPOSITORY https://github.com/recp/cglm.git
+    GIT_TAG        v0.9.6
 )
+
+FetchContent_MakeAvailable(CGLM)
 
 set(RENDERER_SRC
 	"src/renderer.c"
@@ -34,9 +38,13 @@ set(UTILS_SRC
 	"src/utils/helper.c"
 )
 
+set(GAMEBASE_SRC
+	"src/gamebase.c"
+)
+
 add_library (${PROJECT_NAME} SHARED
+	${GAMEBASE_SRC}
 	${RENDERER_SRC}
-	${WINDOW_SRC}
 	${UTILS_SRC}
 )
 
@@ -45,7 +53,7 @@ target_include_directories(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PUBLIC Vulkan::Vulkan SDL2 SDL2main
+	PUBLIC Vulkan::Vulkan SDL2 SDL2main cglm
 )
 
 # --- Shaders --- #
@@ -86,4 +94,25 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:Structa>"
         "$<TARGET_FILE_DIR:Structa>/samples"
+)
+
+# --- Test --- #
+
+enable_testing()
+
+FetchContent_Declare(
+    Unity
+    GIT_REPOSITORY https://github.com/ThrowTheSwitch/Unity.git
+    GIT_TAG        v2.6.1 
+)
+
+FetchContent_MakeAvailable(Unity)
+
+add_subdirectory(tests)
+
+add_custom_command(
+    TARGET Structa POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:Structa>"
+        "$<TARGET_FILE_DIR:Structa>/tests"
 )
