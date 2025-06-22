@@ -90,7 +90,16 @@ typedef struct StPipeline {
 	VkPipelineLayout layout;
 } StPipeline;
 
+typedef struct TransformPushConstant {
+	mat4 projection;
+	mat4 model;
+} TransformPushConstant;
+
 typedef struct StRenderable_T {
+	TransformComponent transform;
+	TransformPushConstant pushConstant;
+	bool transformDirty;
+
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
 	uint32_t vertexCount;
@@ -150,6 +159,7 @@ static StResult findQueueFamilies(VkPhysicalDevice GPU, VkSurfaceKHR surface, St
 static StResult getSwapchainDetails(VkPhysicalDevice GPU, VkSurfaceKHR surface, StSwapchainDetails* swapchainDetails);
 static uint32_t findMemoryType(VkPhysicalDevice GPU, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 static const char* readBinaryFile(const char* path, size_t* fileSize);
+TransformPushConstant transformToPushConstant(const TransformComponent* transform);
 
 // callbacks
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
@@ -207,6 +217,9 @@ void stDestroyRenderer(StRenderer renderer)
 
 void stRender(StRenderer renderer)
 {
+	static mat4 projectionMatrix = { 0 };
+	glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, -1.0f, 1.0f, projectionMatrix);
+
 	VK_CHECK(vkWaitForFences(renderer->device.handle, 1, &renderer->syncObjs[renderer->frameInFlight].frameFence, VK_TRUE, UINT64_MAX));
 	VK_CHECK(vkResetFences(renderer->device.handle, 1, &renderer->syncObjs[renderer->frameInFlight].frameFence));
 
@@ -264,6 +277,16 @@ void stRender(StRenderer renderer)
 
 	for (uint32_t i = 0; i < renderer->renderablesManager.count; ++i)
 	{
+
+		if (renderer->renderablesManager.pool[i].transformDirty) 
+		{
+			renderer->renderablesManager.pool[i].pushConstant = transformToPushConstant(&renderer->renderablesManager.pool[i].transform);
+			glm_mat4_copy(projectionMatrix, renderer->renderablesManager.pool[i].pushConstant.projection);
+			renderer->renderablesManager.pool[i].transformDirty = false;
+		}
+
+		vkCmdPushConstants(renderer->commandBuffers[renderer->frameInFlight], renderer->pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(TransformPushConstant), &renderer->renderablesManager.pool[i].pushConstant);
+
 		VkBuffer vertexBuffers[] = { renderer->renderablesManager.pool[i].vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(renderer->commandBuffers[renderer->frameInFlight], 0, 1, vertexBuffers, offsets);
@@ -367,7 +390,12 @@ StResult stCreateRenderable(StRenderer renderer, const StRenderableCreateInfo* c
 	vkUnmapMemory(renderer->device.handle, (*renderable)->vertexBufferMemory);
 
 	(*renderable)->vertexCount = (createInfo->size) / sizeof(Vertex);
-	
+
+	glm_vec3_copy(createInfo->transformCreateInfo->initialPosition, (*renderable)->transform.position);
+	glm_vec3_copy(createInfo->transformCreateInfo->initialRotation, (*renderable)->transform.rotation);
+	glm_vec3_copy(createInfo->transformCreateInfo->initialScale, (*renderable)->transform.scale);
+	(*renderable)->transformDirty = true;
+
 	renderer->renderablesManager.count++;
 	return ST_SUCCESS;
 }
@@ -897,8 +925,16 @@ StResult createPipeline(StDevice device, VkRenderPass renderPass, StPipeline* pi
 		.pAttachments = &colorBlendAttachment
 	};
 
+	VkPushConstantRange pushConstantRange = {
+		.size = sizeof(TransformPushConstant),
+		.offset = 0,
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+	};
+
 	VkPipelineLayoutCreateInfo pipelineLayoutCI = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &pushConstantRange
 	};
 
 	VK_CHECK(vkCreatePipelineLayout(device.handle, &pipelineLayoutCI, NULL, &pipeline->layout));
@@ -1150,6 +1186,24 @@ static const char* readBinaryFile(const char* path, size_t* fileSize)
 	}
 
 	return buffer;
+}
+
+TransformPushConstant transformToPushConstant(const TransformComponent* transform)
+{
+	TransformPushConstant pushConstant;
+
+	mat4 model;
+	glm_mat4_identity(model);
+	
+	mat4 rotation;
+	glm_euler_xyz(transform->rotation, rotation);
+	glm_mul(model, rotation, model);
+
+	glm_scale(model, transform->scale);
+	
+	glm_mat4_copy(model, pushConstant.model);
+
+	return pushConstant;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)

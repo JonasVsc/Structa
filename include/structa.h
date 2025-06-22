@@ -3,5 +3,6 @@
 
 #include "core.h"
 #include "renderer.h"
+#include "gamebase.h"
 
 #endif

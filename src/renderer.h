@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
+#include <cglm/cglm.h>
 #include <stdbool.h>
 
 // =============================================================================
@@ -20,11 +21,23 @@ typedef struct StRenderable_T* StRenderable;
 // Public Data Structures
 // =============================================================================
 
+typedef struct TransformCreateInfo {
+	vec3 initialPosition;
+	vec3 initialRotation;
+	vec3 initialScale;
+} TransformCreateInfo;
+
+typedef struct TransformComponent {
+	vec3 position;
+	vec3 rotation;
+	vec3 scale;
+} TransformComponent;
+
 typedef struct StRenderableCreateInfo {
+	const TransformCreateInfo* transformCreateInfo;
 	size_t size;
 	const void* src;
 } StRenderableCreateInfo;
-
 
 typedef struct StWindowCreateInfo {
 	const char* title;
