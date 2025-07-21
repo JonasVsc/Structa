@@ -1,13 +1,18 @@
 ﻿{
   "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "base",
       "hidden": true,
-      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_C_STANDARD": "17"
+        "CMAKE_C_FLAGS": "/W4 /permissive-",
+        "CMAKE_C_STANDARD": "23"
       }
     },
     {
