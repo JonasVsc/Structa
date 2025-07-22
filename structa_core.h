@@ -4,12 +4,15 @@
 // WIN32
 #include <Windows.h>
 
+// VULKAN
+#include <vulkan/vulkan.h>
+
 // STD
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-typedef enum StResult
-{
+typedef enum StResult {
 	ST_SUCCESS = 0,
 	ST_ERROR = -1,
 } StResult;
@@ -22,13 +25,14 @@ typedef struct StWindowCreateInfo {
 	uint32_t height;
 } StWindowCreateInfo;
 
-StResult stInitSystem();
+StResult stInit();
 
 void stShutdown();
 
-StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow* window);
+// second param StWindow is optional
+StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window);
 
-void stDestroyWindow(StWindow window);
+void stDestroyWindow();
 
 
 #endif // STRUCTA_CORE_H_

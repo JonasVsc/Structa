@@ -1,25 +1,17 @@
 #include "structa_core.h"
+#include "structa_internal.h"
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-typedef struct StWindow_T {
-	const char* title;
-	uint32_t height;
-	uint32_t width;
-	HWND handle;
-} StWindow_T;
-
-StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow* window)
+StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window)
 {
-	if (!create_info || !window) return ST_ERROR;
+	StWindow internal_window = structa_internal_window_ptr();
 
-	*window = (StWindow_T*)calloc(1, sizeof(StWindow_T));
+	if (create_info == NULL) return ST_ERROR;
 
-	if (*window == NULL) return ST_ERROR;
-
-	(*window)->title = create_info->title;
-	(*window)->width = create_info->width;
-	(*window)->height = create_info->height;
+	internal_window->title = create_info->title;
+	internal_window->width = create_info->width;
+	internal_window->height = create_info->height;
 
 	HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(NULL);
 
@@ -30,19 +22,17 @@ StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow* window
 	windowClass.lpszClassName = CLASS_NAME;
 	RegisterClass(&windowClass);
 
-	window = CreateWindow(CLASS_NAME, (*window)->title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, (*window)->width, (*window)->height, NULL, NULL, hInstance, NULL);
-	ShowWindow(window, SW_SHOWNORMAL);
+	internal_window->handle = CreateWindow(CLASS_NAME, internal_window->title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, internal_window->width, internal_window->height, NULL, NULL, hInstance, NULL);
+	ShowWindow(internal_window->handle, SW_SHOWNORMAL);
 
+	window = internal_window;
 	return ST_SUCCESS;
 }
 
-void stDestroyWindow(StWindow window)
+void stDestroyWindow()
 {
-	if (window == NULL) return;
-	DestroyWindow(window->handle);
-
-	free(window);
-	window = NULL;
+	StWindow internal_window = structa_internal_window_ptr();
+	DestroyWindow(internal_window->handle);
 }
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)

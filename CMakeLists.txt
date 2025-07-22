@@ -7,12 +7,11 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 find_package(Vulkan)
 
 set(STRUCTA_INTERNAL
-    "structa_memory.c"
+    "structa_internal.c"
 )
 
 set(STRUCTA_CORE
     "structa_window.c"
-    "structa_init.c"
 )
 
 add_library(structa_lib SHARED
