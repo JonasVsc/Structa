@@ -10,6 +10,7 @@
       "name": "base",
       "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}",
+      "generator": "Visual Studio 17 2022",
       "cacheVariables": {
         "CMAKE_C_FLAGS": "/W4 /permissive-",
         "CMAKE_C_STANDARD": "23"

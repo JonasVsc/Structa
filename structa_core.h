@@ -1,7 +1,10 @@
 #ifndef STRUCTA_CORE_H_
 #define STRUCTA_CORE_H_ 1
 
-#include <stddef.h>
+// WIN32
+#include <Windows.h>
+
+// STD
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -19,8 +22,13 @@ typedef struct StWindowCreateInfo {
 	uint32_t height;
 } StWindowCreateInfo;
 
+StResult stInitSystem();
+
+void stShutdown();
+
 StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow* window);
 
 void stDestroyWindow(StWindow window);
+
 
 #endif // STRUCTA_CORE_H_

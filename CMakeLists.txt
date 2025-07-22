@@ -6,8 +6,18 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 find_package(Vulkan)
 
-add_library(structa_lib SHARED
+set(STRUCTA_INTERNAL
+    "structa_memory.c"
+)
+
+set(STRUCTA_CORE
     "structa_window.c"
+    "structa_init.c"
+)
+
+add_library(structa_lib SHARED
+    ${STRUCTA_INTERNAL}
+    ${STRUCTA_CORE}
 )
 
 target_link_libraries(structa_lib
@@ -15,7 +25,7 @@ target_link_libraries(structa_lib
 )
 
 add_executable(structa_app WIN32
-    "structa_app.c"
+    "main.c"
 )
 
 target_link_libraries(structa_app PRIVATE structa_lib)

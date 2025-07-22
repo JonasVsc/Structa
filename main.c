@@ -8,16 +8,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	(void)pCmdLine;
 	(void)nCmdShow;
 
-	StWindow window = { 0 };
-
-	StWindowCreateInfo window_create_info = {
-		.title = "Structa Application",
-		.width = 640,
-		.height = 480
-	};
-
-	stCreateWindow(&window_create_info, &window);
+	if (stInitSystem() != ST_SUCCESS)
+	{
+		OutputDebugString("Failed init structa");
+	}
 
 
+	stShutdown();
 	return 0;
 }
