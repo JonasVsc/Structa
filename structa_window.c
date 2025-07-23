@@ -3,7 +3,7 @@
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window)
+StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow* window)
 {
 	StWindow internal_window = structa_internal_window_ptr();
 
@@ -12,6 +12,7 @@ StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window)
 	internal_window->title = create_info->title;
 	internal_window->width = create_info->width;
 	internal_window->height = create_info->height;
+	internal_window->close = false;
 
 	HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(NULL);
 
@@ -25,7 +26,7 @@ StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window)
 	internal_window->handle = CreateWindow(CLASS_NAME, internal_window->title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, internal_window->width, internal_window->height, NULL, NULL, hInstance, NULL);
 	ShowWindow(internal_window->handle, SW_SHOWNORMAL);
 
-	window = internal_window;
+	*window = internal_window;
 	return ST_SUCCESS;
 }
 
@@ -35,12 +36,27 @@ void stDestroyWindow()
 	DestroyWindow(internal_window->handle);
 }
 
+bool stWindowShouldClose(StWindow window)
+{
+	return window->close;
+}
+
+void stPollEvents()
+{
+	MSG msg = { 0 };
+	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
+
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
-
 	case WM_DESTROY:
+		structa_internal_window_ptr()->close = true;
 		PostQuitMessage(0);
 		break;
 	}

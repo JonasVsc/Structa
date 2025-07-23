@@ -9,6 +9,7 @@
 #include <vulkan/vulkan.h>
 
 // STD
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -32,13 +33,19 @@ StResult stInit();
 void stShutdown();
 
 // second param StWindow is optional
-StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window);
+StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow* window);
 
 void stDestroyWindow();
 
 // param StRenderer is optional
-StResult stCreateRenderer(StRenderer renderer);
+StResult stCreateRenderer(StRenderer* renderer);
 
 void stDestroyRenderer();
+
+void stRender(StRenderer renderer);
+
+bool stWindowShouldClose(StWindow window);
+
+void stPollEvents();
 
 #endif // STRUCTA_CORE_H_

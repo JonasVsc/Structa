@@ -14,7 +14,7 @@ static StResult structa_renderer_create_swapchain_image_views(VkDevice device, V
 static VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint32_t queue_family);
 static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers);
 
-StResult stCreateRenderer(StRenderer renderer)
+StResult stCreateRenderer(StRenderer* renderer)
 {
 	StRenderer internal_renderer = structa_internal_renderer_ptr();
 
@@ -53,6 +53,8 @@ StResult stCreateRenderer(StRenderer renderer)
 	if (structa_renderer_allocate_command_buffers(internal_renderer->device, internal_renderer->command_pool, internal_renderer->command_buffers) != ST_SUCCESS)
 		return ST_ERROR;
 
+	*renderer = internal_renderer;
+
 	return ST_SUCCESS;
 }
 
@@ -70,6 +72,11 @@ void stDestroyRenderer()
 	vkDestroyDevice(internal_renderer->device, NULL);
 	vkDestroySurfaceKHR(internal_renderer->instance, internal_renderer->surface, NULL);
 	vkDestroyInstance(internal_renderer->instance, NULL);
+}
+
+void stRender(StRenderer renderer)
+{
+
 }
 
 static VkInstance structa_renderer_create_instance()

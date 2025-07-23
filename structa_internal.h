@@ -1,9 +1,9 @@
 #ifndef STRUCTA_INTERNAL_H_
 #define STRUCTA_INTERNAL_H_ 1
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 #include <Windows.h>
 #include <vulkan/vulkan.h>
@@ -18,6 +18,7 @@ typedef struct StWindow_T {
 	uint32_t height;
 	uint32_t width;
 	HWND handle;
+	bool close;
 } StWindow_T;
 
 typedef struct StRenderer_T {

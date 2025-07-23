@@ -5,12 +5,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 {
 	(void)hInstance;(void)hPrevInstance;(void)pCmdLine;(void)nCmdShow;
 
-#ifndef NDEBUG
 	AllocConsole();
 
 	FILE* file;
 	freopen_s(&file, "CONOUT$", "w", stdout);
-#endif // NDEBUG
 
 	if (stInit() != ST_SUCCESS)
 	{
@@ -23,11 +21,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		.height = 480
 	};
 
-	stCreateWindow(&window_create_info, NULL);
-	stCreateRenderer(NULL);
+	StWindow window = { 0 };
+	stCreateWindow(&window_create_info, &window);
+	
+	StRenderer renderer = { 0 };
+	stCreateRenderer(&renderer);
+
+	while (!stWindowShouldClose(window))
+	{
+		stPollEvents();
+
+		stRender(renderer);
+	}
 
 	stDestroyRenderer();
 	stDestroyWindow();
 	stShutdown();
+
+	FreeConsole();
 	return 0;
 }
