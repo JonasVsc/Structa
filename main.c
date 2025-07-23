@@ -24,10 +24,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	};
 
 	stCreateWindow(&window_create_info, NULL);
+	stCreateRenderer(NULL);
 
+	stDestroyRenderer();
 	stDestroyWindow();
 	stShutdown();
-	
-	system("pause");
 	return 0;
 }

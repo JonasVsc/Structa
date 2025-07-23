@@ -7,12 +7,13 @@ static StMemory_T g_memory = { 0 };
 StResult stInit()
 {
 	// ALLOC SYSTEM STORAGE
-	const size_t total_size = sizeof(StWindow_T);
+	const size_t total_size = sizeof(StWindow_T) + sizeof(StRenderer_T);
 	g_memory.system_storage = (StWindow_T*)calloc(1, total_size);
 	g_memory.size = total_size;
 
 	// INIT SubSystem Pointers
 	g_memory.ptr_window = g_memory.system_storage;
+	g_memory.ptr_renderer = (StRenderer_T*)((char*)g_memory.system_storage + sizeof(StWindow_T));
 
 	return ST_SUCCESS;
 }
@@ -29,4 +30,10 @@ StWindow structa_internal_window_ptr()
 {
 	return g_memory.ptr_window;
 }
+
+StRenderer structa_internal_renderer_ptr()
+{
+	return g_memory.ptr_renderer;
+}
+
 

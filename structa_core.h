@@ -5,6 +5,7 @@
 #include <Windows.h>
 
 // VULKAN
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
 // STD
@@ -18,6 +19,7 @@ typedef enum StResult {
 } StResult;
 
 typedef struct StWindow_T* StWindow;
+typedef struct StRenderer_T* StRenderer;
 
 typedef struct StWindowCreateInfo {
 	const char* title;
@@ -34,5 +36,9 @@ StResult stCreateWindow(const  StWindowCreateInfo* create_info, StWindow window)
 
 void stDestroyWindow();
 
+// param StRenderer is optional
+StResult stCreateRenderer(StRenderer renderer);
+
+void stDestroyRenderer();
 
 #endif // STRUCTA_CORE_H_

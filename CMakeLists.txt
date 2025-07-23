@@ -12,6 +12,7 @@ set(STRUCTA_INTERNAL
 
 set(STRUCTA_CORE
     "structa_window.c"
+    "structa_renderer.c"
 )
 
 add_library(structa_lib SHARED
