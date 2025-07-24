@@ -9,10 +9,13 @@ static uint32_t structa_renderer_select_queue_families(VkPhysicalDevice physical
 static VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice physical_device, uint32_t graphics_queue_family);
 static VkPresentModeKHR structa_renderer_select_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkPresentModeKHR preferred_present_mode);
 static VkSurfaceFormatKHR structa_renderer_select_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR preferred_surface_format);
-static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkDevice device, uint32_t* image_count);
-static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views);
+static VkExtent2D structa_renderer_select_surface_extent(VkPhysicalDevice physical_device, VkSurfaceKHR surface);
+static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR swapchain_format, VkExtent2D swapchain_extent, VkDevice device, uint32_t* image_count);
 static VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint32_t queue_family);
+static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views);
 static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers);
+static StResult structa_renderer_create_semaphore(VkDevice device, VkSemaphore* semaphore, uint32_t semaphore_count);
+static StResult structa_renderer_create_fence(VkDevice device, VkFence* fence, uint32_t fence_count);
 
 StResult stCreateRenderer(StRenderer* renderer)
 {
@@ -38,7 +41,9 @@ StResult stCreateRenderer(StRenderer* renderer)
 	VkSurfaceFormatKHR preffered_surface_format = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
 	internal_renderer->swapchain_format = structa_renderer_select_surface_format(internal_renderer->physical_device, internal_renderer->surface, preffered_surface_format);
 
-	if ((internal_renderer->swapchain = structa_renderer_create_swapchain(internal_renderer->physical_device, internal_renderer->surface, internal_renderer->device, &internal_renderer->swapchain_image_count)) == NULL)
+	internal_renderer->swapchain_extent = structa_renderer_select_surface_extent(internal_renderer->physical_device, internal_renderer->surface);
+
+	if ((internal_renderer->swapchain = structa_renderer_create_swapchain(internal_renderer->physical_device, internal_renderer->surface, internal_renderer->swapchain_format, internal_renderer->swapchain_extent, internal_renderer->device, &internal_renderer->swapchain_image_count)) == NULL)
 		return ST_ERROR;
 
 	vkGetSwapchainImagesKHR(internal_renderer->device, internal_renderer->swapchain, &internal_renderer->swapchain_image_count, NULL);
@@ -53,8 +58,19 @@ StResult stCreateRenderer(StRenderer* renderer)
 	if (structa_renderer_allocate_command_buffers(internal_renderer->device, internal_renderer->command_pool, internal_renderer->command_buffers) != ST_SUCCESS)
 		return ST_ERROR;
 
-	*renderer = internal_renderer;
+	if (structa_renderer_create_semaphore(internal_renderer->device, internal_renderer->acquire_semaphore, MAX_FRAMES_IN_FLIGHT) != ST_SUCCESS)
+		return ST_ERROR;
 
+	if (structa_renderer_create_semaphore(internal_renderer->device, internal_renderer->submit_semaphore, internal_renderer->swapchain_image_count) != ST_SUCCESS)
+		return ST_ERROR;
+
+	if (structa_renderer_create_fence(internal_renderer->device, internal_renderer->frame_fence, internal_renderer->swapchain_image_count) != ST_SUCCESS)
+		return ST_ERROR;
+
+	internal_renderer->image_index = 0;
+	internal_renderer->frame = 0;
+
+	*renderer = internal_renderer;
 	return ST_SUCCESS;
 }
 
@@ -62,9 +78,18 @@ void stDestroyRenderer()
 {
 	StRenderer internal_renderer = structa_internal_renderer_ptr();
 
+	vkDeviceWaitIdle(internal_renderer->device);
+
 	for (uint32_t i = 0; i < internal_renderer->swapchain_image_count; ++i)
 	{
 		vkDestroyImageView(internal_renderer->device, internal_renderer->swapchain_image_views[i], NULL);
+		vkDestroySemaphore(internal_renderer->device, internal_renderer->submit_semaphore[i], NULL);
+		vkDestroyFence(internal_renderer->device, internal_renderer->frame_fence[i], NULL);
+	}
+
+	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		vkDestroySemaphore(internal_renderer->device, internal_renderer->acquire_semaphore[i], NULL);
 	}
 	
 	vkDestroyCommandPool(internal_renderer->device, internal_renderer->command_pool, NULL);
@@ -74,9 +99,155 @@ void stDestroyRenderer()
 	vkDestroyInstance(internal_renderer->instance, NULL);
 }
 
-void stRender(StRenderer renderer)
+void stRender(StRenderer r)
 {
+	vkWaitForFences(r->device, 1, &r->frame_fence[r->frame], VK_TRUE, UINT64_MAX);
+	vkResetFences(r->device, 1, &r->frame_fence[r->frame]);
 
+	VkResult acquire_result = vkAcquireNextImageKHR(r->device, r->swapchain, UINT64_MAX, r->acquire_semaphore[r->frame], VK_NULL_HANDLE, &r->image_index);
+
+	if (acquire_result != VK_SUCCESS)
+	{
+		printf("error acquire swapchain image!\n");
+		structa_internal_window_ptr()->close = true;
+		return;
+	}
+
+	vkResetCommandBuffer(r->command_buffers[r->frame], 0);
+	VkCommandBufferBeginInfo cmd_begin = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+
+	vkBeginCommandBuffer(r->command_buffers[r->frame], &cmd_begin);
+
+	VkImageMemoryBarrier image_barrier_write = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_PIPELINE_STAGE_NONE,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = r->swapchain_images[r->image_index],
+		.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+	};
+
+	vkCmdPipelineBarrier(
+		r->command_buffers[r->frame],
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		0,
+		0, NULL,
+		0, NULL,
+		1, &image_barrier_write
+	);
+
+	VkClearValue clear_color = { {{0.2f, 0.2f, 0.2f, 1.0f}} };
+
+	VkRenderingAttachmentInfo color_attachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageView = r->swapchain_image_views[r->image_index],
+		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.clearValue = clear_color,
+	};
+
+	VkRect2D render_area = {
+		.offset = {0},
+		.extent = r->swapchain_extent
+	};
+
+	VkRenderingInfo render_info = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.renderArea = render_area,
+		.layerCount = 1,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &color_attachment,
+	};
+
+	vkCmdBeginRendering(r->command_buffers[r->frame], &render_info);
+
+	VkViewport viewport = {
+		.width = (float)r->swapchain_extent.width,
+		.height = (float)r->swapchain_extent.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	VkRect2D scissor = {
+		.offset = {0, 0},
+		.extent = r->swapchain_extent
+	};
+
+	vkCmdSetViewport(r->command_buffers[r->frame], 0, 1, &viewport);
+	vkCmdSetScissor(r->command_buffers[r->frame], 0, 1, &scissor);
+
+	vkCmdEndRendering(r->command_buffers[r->frame]);
+
+	VkImageSubresourceRange range = {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel = 0,
+		.levelCount = VK_REMAINING_MIP_LEVELS,
+		.baseArrayLayer = 0,
+		.layerCount = VK_REMAINING_ARRAY_LAYERS
+	};
+
+	VkImageMemoryBarrier image_barrier_present = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstAccessMask = 0,
+		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = r->swapchain_images[r->image_index],
+		.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}
+	};
+
+	vkCmdPipelineBarrier(
+		r->command_buffers[r->frame],
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0,
+		0, NULL,
+		0, NULL,
+		1, &image_barrier_present
+	);
+
+	vkEndCommandBuffer(r->command_buffers[r->frame]);
+
+	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	VkSemaphore wait_semaphores[] = { r->acquire_semaphore[r->frame] };
+	VkSemaphore signal_semaphores[] = { r->submit_semaphore[r->frame] };
+
+	VkSubmitInfo submitInfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = wait_semaphores,
+		.pWaitDstStageMask = wait_stages,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &r->command_buffers[r->frame],
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = signal_semaphores
+	};
+
+	vkQueueSubmit(r->graphics_queue, 1, &submitInfo, r->frame_fence[r->frame]);
+
+	VkPresentInfoKHR present_info = {
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = signal_semaphores,
+		.swapchainCount = 1,
+		.pSwapchains = &r->swapchain,
+		.pImageIndices = &r->image_index
+	};
+
+	VkResult present_result = vkQueuePresentKHR(r->graphics_queue, &present_info);
+	if (present_result != VK_SUCCESS)
+	{
+		printf("error acquire swapchain image!\n");
+		structa_internal_window_ptr()->close = true;
+		return;
+	}
+
+	r->frame = (r->frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 static VkInstance structa_renderer_create_instance()
@@ -130,7 +301,7 @@ static VkSurfaceKHR structa_renderer_create_surface(VkInstance instance)
 	return surface;
 }
 
-VkPhysicalDevice structa_renderer_select_physical_device(VkInstance instance)
+static VkPhysicalDevice structa_renderer_select_physical_device(VkInstance instance)
 {
 	uint32_t physical_device_count = { 0 };
 	vkEnumeratePhysicalDevices(instance, &physical_device_count, NULL);
@@ -156,7 +327,7 @@ VkPhysicalDevice structa_renderer_select_physical_device(VkInstance instance)
 	return physical_devices[0];
 }
 
-uint32_t structa_renderer_select_queue_families(VkPhysicalDevice physical_device)
+static uint32_t structa_renderer_select_queue_families(VkPhysicalDevice physical_device)
 {
 	uint32_t queue_family_property_count = { 0 };
 	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_property_count, NULL);
@@ -173,7 +344,7 @@ uint32_t structa_renderer_select_queue_families(VkPhysicalDevice physical_device
 	return -1;
 }
 
-VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice physical_device, uint32_t graphics_queue_family)
+static VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice physical_device, uint32_t graphics_queue_family)
 {
 	
 	float queue_priority = 1.0f;
@@ -202,6 +373,7 @@ VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice ph
 
 	VkDeviceCreateInfo device_create_info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.pNext = &features,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &graphics_queue_create_info,
 		.enabledExtensionCount = 2,
@@ -213,7 +385,7 @@ VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice ph
 	return device;
 }
 
-VkPresentModeKHR structa_renderer_select_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkPresentModeKHR preferred_present_mode)
+static VkPresentModeKHR structa_renderer_select_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkPresentModeKHR preferred_present_mode)
 {
 	uint32_t present_mode_count = { 0 };
 	vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &present_mode_count, NULL);
@@ -230,7 +402,7 @@ VkPresentModeKHR structa_renderer_select_present_mode(VkPhysicalDevice physical_
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkSurfaceFormatKHR structa_renderer_select_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR preferred_surface_format)
+static VkSurfaceFormatKHR structa_renderer_select_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR preferred_surface_format)
 {
 	uint32_t surface_format_count = { 0 };
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &surface_format_count, NULL);
@@ -265,24 +437,16 @@ VkSurfaceFormatKHR structa_renderer_select_surface_format(VkPhysicalDevice physi
 	return surface_formats[0];
 }
 
-VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkDevice device, uint32_t* image_count)
+static VkExtent2D structa_renderer_select_surface_extent(VkPhysicalDevice physical_device, VkSurfaceKHR surface)
 {
-	VkPresentModeKHR present_mode = structa_renderer_select_present_mode(physical_device, surface, VK_PRESENT_MODE_FIFO_KHR);
-	
-	VkSurfaceFormatKHR preffered_surface_format = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-	VkSurfaceFormatKHR surface_format = structa_renderer_select_surface_format(physical_device, surface, preffered_surface_format);
 
 	VkSurfaceCapabilitiesKHR capabilities = { 0 };
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities);
 
-	uint32_t swapchain_image_count = { 0 };
-	if ((swapchain_image_count = capabilities.minImageCount + 1) > capabilities.maxImageCount)
-		swapchain_image_count -= 1;
-
-	VkExtent2D surface_extent = { 0 };
+	VkExtent2D extent = { 0 };
 	if (capabilities.currentExtent.width != UINT32_MAX)
 	{
-		surface_extent = capabilities.currentExtent;
+		extent = capabilities.currentExtent;
 	}
 	else
 	{
@@ -292,20 +456,34 @@ VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_devic
 		uint32_t width = client_rect.right = client_rect.left;
 		uint32_t height = client_rect.bottom - client_rect.top;
 
-		surface_extent.width = width;
-		surface_extent.height = height;
+		extent.width = width;
+		extent.height = height;
 
-		surface_extent.width = clamp(surface_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-		surface_extent.height = clamp(surface_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+		extent.width = clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+		extent.height = clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 	}
+
+	return extent;
+}
+
+static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR swapchain_format, VkExtent2D swapchain_extent, VkDevice device, uint32_t* image_count)
+{
+	VkPresentModeKHR present_mode = structa_renderer_select_present_mode(physical_device, surface, VK_PRESENT_MODE_FIFO_KHR);
+	
+	VkSurfaceCapabilitiesKHR capabilities = { 0 };
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities);
+
+	uint32_t swapchain_image_count = { 0 };
+	if ((swapchain_image_count = capabilities.minImageCount + 1) > capabilities.maxImageCount)
+		swapchain_image_count -= 1;
 
 	VkSwapchainCreateInfoKHR swapchain_create_info = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.surface = surface,
 		.minImageCount = capabilities.minImageCount,
-		.imageFormat = surface_format.format,
-		.imageColorSpace = surface_format.colorSpace,
-		.imageExtent = surface_extent,
+		.imageFormat = swapchain_format.format,
+		.imageColorSpace = swapchain_format.colorSpace,
+		.imageExtent = swapchain_extent,
 		.imageArrayLayers = 1,
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		.preTransform = capabilities.currentTransform,
@@ -352,7 +530,7 @@ static StResult structa_renderer_create_swapchain_image_views(VkDevice device, V
 	return ST_SUCCESS;
 }
 
-VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint32_t queue_family)
+static VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint32_t queue_family)
 {
 	VkCommandPoolCreateInfo coomand_pool_create_info = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -376,6 +554,37 @@ static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCom
 
 	if (vkAllocateCommandBuffers(device, &command_buffer_alloc_info, command_buffers) != VK_SUCCESS)
 		return ST_ERROR;
+
+	return ST_SUCCESS;
+}
+
+static StResult structa_renderer_create_semaphore(VkDevice device, VkSemaphore* semaphore, uint32_t semaphore_count)
+{
+	VkSemaphoreCreateInfo semaphore_create_info = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+	};
+
+	for (uint32_t i = 0; i < semaphore_count; ++i)
+	{
+		if (vkCreateSemaphore(device, &semaphore_create_info, NULL, &semaphore[i]) != VK_SUCCESS)
+			return ST_ERROR;
+	}
+
+	return ST_SUCCESS;
+}
+
+static StResult structa_renderer_create_fence(VkDevice device, VkFence* fence, uint32_t fence_count)
+{
+	VkFenceCreateInfo fence_create_info = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT
+	};
+
+	for (uint32_t i = 0; i < fence_count; ++i)
+	{
+		if (vkCreateFence(device, &fence_create_info, NULL, &fence[i]) != VK_SUCCESS)
+			return ST_ERROR;
+	}
 
 	return ST_SUCCESS;
 }

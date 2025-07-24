@@ -29,12 +29,18 @@ typedef struct StRenderer_T {
 	VkQueue graphics_queue;
 	uint32_t graphics_queue_family;
 	VkSwapchainKHR swapchain;
+	VkSurfaceFormatKHR swapchain_format;
+	VkExtent2D swapchain_extent;
 	VkImage swapchain_images[5];
 	VkImageView swapchain_image_views[5];
 	uint32_t swapchain_image_count;
-	VkSurfaceFormatKHR swapchain_format;
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
+	VkSemaphore acquire_semaphore[MAX_FRAMES_IN_FLIGHT];
+	VkSemaphore submit_semaphore[5];
+	VkFence frame_fence[5];
+	uint32_t image_index;
+	uint32_t frame;
 } StRenderer_T;
 
 typedef struct StMemory_T {
