@@ -43,12 +43,12 @@ typedef struct StRenderer_T {
 	uint32_t frame;
 } StRenderer_T;
 
-typedef struct StMemory_T {
-	void* system_storage;
+typedef struct StStructaSystem_T {
+	void* storage;
 	StWindow_T* ptr_window;
 	StRenderer_T* ptr_renderer;
 	size_t size;
-} StMemory_T;
+} StStructaSystem_T;
 
 StWindow structa_internal_window_ptr();
 

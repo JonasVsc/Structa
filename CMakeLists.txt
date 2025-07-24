@@ -6,6 +6,8 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 find_package(Vulkan)
 
+include_directories(${CMAKE_SOURCE_DIR})
+
 set(STRUCTA_INTERNAL
     "structa_internal.c"
 )
@@ -15,9 +17,17 @@ set(STRUCTA_CORE
     "structa_renderer.c"
 )
 
+# --- SYSTEMS ---
+set(STRUCTA_GUI
+    "systems/structa_gui/structa_gui.c"
+)
+
 add_library(structa_lib SHARED
     ${STRUCTA_INTERNAL}
     ${STRUCTA_CORE}
+    
+    # SYSTEMS
+    ${STRUCTA_GUI}
 )
 
 target_link_libraries(structa_lib

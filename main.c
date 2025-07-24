@@ -1,3 +1,4 @@
+#define USE_STRUCTA_GUI
 #include "structa.h"
 #include <Windows.h>
 
@@ -20,6 +21,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		.width = 640,
 		.height = 480
 	};
+	
+	// Init systems
 
 	StWindow window = { 0 };
 	stCreateWindow(&window_create_info, &window);
@@ -27,13 +30,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	StRenderer renderer = { 0 };
 	stCreateRenderer(&renderer);
 
+	StGuiInitInfo gui_init_info = {0};
+	stInitGuiSystem(&gui_init_info);
+
 	while (!stWindowShouldClose(window))
 	{
-		stPollEvents();
-
 		stRender(renderer);
+
+		stPollEvents();
 	}
 
+	stShutdownGuiSystem();
 	stDestroyRenderer();
 	stDestroyWindow();
 	stShutdown();
