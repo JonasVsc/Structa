@@ -1,0 +1,48 @@
+﻿{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "generator": "Visual Studio 17 2022",
+      "cacheVariables": {
+        "CMAKE_C_FLAGS": "/W4 /permissive-",
+        "CMAKE_C_STANDARD": "23"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug-build",
+      "configurePreset": "debug",
+      "displayName": "Build (Debug)"
+    },
+    {
+      "name": "release-build",
+      "configurePreset": "release",
+      "displayName": "Build (Release)"
+    }
+  ]
+}
