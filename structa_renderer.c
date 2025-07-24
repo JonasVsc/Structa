@@ -6,13 +6,13 @@ static VkInstance structa_renderer_create_instance();
 static VkSurfaceKHR structa_renderer_create_surface(VkInstance instance);
 static VkPhysicalDevice structa_renderer_select_physical_device(VkInstance instance);
 static uint32_t structa_renderer_select_queue_families(VkPhysicalDevice physical_device);
-static VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice physical_device, uint32_t graphics_queue_family);
+static VkDevice structa_renderer_create_device(VkPhysicalDevice physical_device, uint32_t graphics_queue_family);
 static VkPresentModeKHR structa_renderer_select_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkPresentModeKHR preferred_present_mode);
 static VkSurfaceFormatKHR structa_renderer_select_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR preferred_surface_format);
 static VkExtent2D structa_renderer_select_surface_extent(VkPhysicalDevice physical_device, VkSurfaceKHR surface);
 static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR swapchain_format, VkExtent2D swapchain_extent, VkDevice device, uint32_t* image_count);
 static VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint32_t queue_family);
-static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views);
+static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views);
 static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers);
 static StResult structa_renderer_create_semaphore(VkDevice device, VkSemaphore* semaphore, uint32_t semaphore_count);
 static StResult structa_renderer_create_fence(VkDevice device, VkFence* fence, uint32_t fence_count);
@@ -33,7 +33,7 @@ StResult stCreateRenderer(StRenderer* renderer)
 	if ((internal_renderer->graphics_queue_family = structa_renderer_select_queue_families(internal_renderer->physical_device)) == -1)
 		return ST_ERROR;
 	
-	if ((internal_renderer->device = structa_renderer_create_device(internal_renderer->instance, internal_renderer->physical_device, internal_renderer->graphics_queue_family)) == NULL)
+	if ((internal_renderer->device = structa_renderer_create_device(internal_renderer->physical_device, internal_renderer->graphics_queue_family)) == NULL)
 		return ST_ERROR;
 
 	vkGetDeviceQueue(internal_renderer->device, internal_renderer->graphics_queue_family, 0, &internal_renderer->graphics_queue);
@@ -49,7 +49,7 @@ StResult stCreateRenderer(StRenderer* renderer)
 	vkGetSwapchainImagesKHR(internal_renderer->device, internal_renderer->swapchain, &internal_renderer->swapchain_image_count, NULL);
 	vkGetSwapchainImagesKHR(internal_renderer->device, internal_renderer->swapchain, &internal_renderer->swapchain_image_count, internal_renderer->swapchain_images);
 
-	if (structa_renderer_create_swapchain_image_views(internal_renderer->device, internal_renderer->swapchain, internal_renderer->swapchain_format, internal_renderer->swapchain_images, internal_renderer->swapchain_image_count, &internal_renderer->swapchain_image_views) != ST_SUCCESS)
+	if (structa_renderer_create_swapchain_image_views(internal_renderer->device, internal_renderer->swapchain_format, internal_renderer->swapchain_images, internal_renderer->swapchain_image_count, internal_renderer->swapchain_image_views) != ST_SUCCESS)
 		return ST_ERROR;
 
 	if ((internal_renderer->command_pool = structa_renderer_create_command_pool(internal_renderer->device, internal_renderer->graphics_queue_family)) == NULL)
@@ -63,9 +63,11 @@ StResult stCreateRenderer(StRenderer* renderer)
 
 	if (structa_renderer_create_semaphore(internal_renderer->device, internal_renderer->submit_semaphore, internal_renderer->swapchain_image_count) != ST_SUCCESS)
 		return ST_ERROR;
-
-	if (structa_renderer_create_fence(internal_renderer->device, internal_renderer->frame_fence, internal_renderer->swapchain_image_count) != ST_SUCCESS)
+	
+	if (structa_renderer_create_fence(internal_renderer->device, internal_renderer->frame_fence, MAX_FRAMES_IN_FLIGHT) != ST_SUCCESS)
 		return ST_ERROR;
+
+
 
 	internal_renderer->image_index = 0;
 	internal_renderer->frame = 0;
@@ -114,6 +116,7 @@ void stRender(StRenderer r)
 	}
 
 	vkResetCommandBuffer(r->command_buffers[r->frame], 0);
+
 	VkCommandBufferBeginInfo cmd_begin = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 
 	vkBeginCommandBuffer(r->command_buffers[r->frame], &cmd_begin);
@@ -182,14 +185,6 @@ void stRender(StRenderer r)
 
 	vkCmdEndRendering(r->command_buffers[r->frame]);
 
-	VkImageSubresourceRange range = {
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.baseMipLevel = 0,
-		.levelCount = VK_REMAINING_MIP_LEVELS,
-		.baseArrayLayer = 0,
-		.layerCount = VK_REMAINING_ARRAY_LAYERS
-	};
-
 	VkImageMemoryBarrier image_barrier_present = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
@@ -217,7 +212,7 @@ void stRender(StRenderer r)
 	VkSemaphore wait_semaphores[] = { r->acquire_semaphore[r->frame] };
 	VkSemaphore signal_semaphores[] = { r->submit_semaphore[r->frame] };
 
-	VkSubmitInfo submitInfo = {
+	VkSubmitInfo submit_info = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = wait_semaphores,
@@ -228,14 +223,16 @@ void stRender(StRenderer r)
 		.pSignalSemaphores = signal_semaphores
 	};
 
-	vkQueueSubmit(r->graphics_queue, 1, &submitInfo, r->frame_fence[r->frame]);
+	vkQueueSubmit(r->graphics_queue, 1, &submit_info, r->frame_fence[r->frame]);
+
+	VkSwapchainKHR swapchains[]  = {r->swapchain};
 
 	VkPresentInfoKHR present_info = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = signal_semaphores,
 		.swapchainCount = 1,
-		.pSwapchains = &r->swapchain,
+		.pSwapchains = swapchains,
 		.pImageIndices = &r->image_index
 	};
 
@@ -341,12 +338,11 @@ static uint32_t structa_renderer_select_queue_families(VkPhysicalDevice physical
 			return i;
 	}
 
-	return -1;
+	return (uint32_t)-1;
 }
 
-static VkDevice structa_renderer_create_device(VkInstance instance, VkPhysicalDevice physical_device, uint32_t graphics_queue_family)
+static VkDevice structa_renderer_create_device(VkPhysicalDevice physical_device, uint32_t graphics_queue_family)
 {
-	
 	float queue_priority = 1.0f;
 	VkDeviceQueueCreateInfo graphics_queue_create_info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -473,9 +469,11 @@ static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physica
 	VkSurfaceCapabilitiesKHR capabilities = { 0 };
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities);
 
-	uint32_t swapchain_image_count = { 0 };
-	if ((swapchain_image_count = capabilities.minImageCount + 1) > capabilities.maxImageCount)
+	uint32_t swapchain_image_count = capabilities.minImageCount + 1;
+	if (swapchain_image_count > capabilities.maxImageCount)
+	{
 		swapchain_image_count -= 1;
+	}
 
 	VkSwapchainCreateInfoKHR swapchain_create_info = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -499,7 +497,7 @@ static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physica
 	return swapchain;
 }
 
-static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views)
+static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views)
 {
 	for (uint32_t i = 0; i < swapchain_image_count; ++i)
 	{
