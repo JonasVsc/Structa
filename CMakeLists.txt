@@ -34,8 +34,10 @@ target_link_libraries(structa_lib
 	PUBLIC Vulkan::Vulkan
 )
 
+
+# --- TEST APP ---
 add_executable(structa_app WIN32
-    "main.c"
+    "test_app/app.c"
 )
 
 target_link_libraries(structa_app PRIVATE structa_lib)
