@@ -55,4 +55,14 @@ void stPollEvents();
 
 VkDevice structa_get_device(StRenderer renderer);
 
+
+// EXPERIMENTAL
+
+void stCreateTriangle();
+
+void stDrawTriangle(VkCommandBuffer cmd);
+
+void stDestroyTriangle();
+
+
 #endif // STRUCTA_CORE_H_

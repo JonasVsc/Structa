@@ -22,12 +22,12 @@ VkPipeline structa_create_default_pipeline(VkDevice device, VkSurfaceFormatKHR s
 	};
 
 	VkVertexInputBindingDescription binding_descriptions[] = {
-		0, sizeof(StVertex), VK_VERTEX_INPUT_RATE_VERTEX
+		{0, sizeof(StVertex), VK_VERTEX_INPUT_RATE_VERTEX}
 	};
 
 	VkVertexInputAttributeDescription attribute_descriptions[] = {
-		{ 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(StVertex, position) },
-		{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(StVertex, color) }
+		{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StVertex, position) },
+		{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StVertex, color) }
 	};
 
 	VkPipelineVertexInputStateCreateInfo vertex_input_create_info = {
@@ -156,4 +156,57 @@ VkShaderModule structa_create_shader_module(VkDevice device, const char* file_pa
 	VkShaderModule shader_module = { 0 };
 	vkCreateShaderModule(device, &shader_module_create_info, NULL, &shader_module);
 	return shader_module;
+}
+
+StBuffer structa_create_buffer(size_t size, VkBuffer usage, VkMemoryPropertyFlags properties)
+{
+	StRenderer renderer = structa_internal_renderer_ptr();
+
+	VkBufferCreateInfo buffer_create_info = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.usage = usage,
+		.size = (VkDeviceSize)size
+	};
+
+	StBuffer structa_buffer = { 0 };
+	vkCreateBuffer(renderer->device, &buffer_create_info, NULL, &structa_buffer.buffer);
+
+	VkMemoryRequirements memory_requirements = { 0 };
+	vkGetBufferMemoryRequirements(renderer->device, structa_buffer.buffer, &memory_requirements);
+
+	uint32_t memory_type_index = find_memory_type(renderer->physical_device, memory_requirements.memoryTypeBits, properties);
+	if (memory_type_index == -1)
+	{
+		printf("failed to allocate buffer memory\n");
+		return structa_buffer;
+	}
+
+	VkMemoryAllocateInfo memory_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memory_requirements.size,
+		.memoryTypeIndex = memory_type_index
+	};
+
+	vkAllocateMemory(renderer->device, &memory_allocate_info, NULL, &structa_buffer.memory);
+
+	vkBindBufferMemory(renderer->device, structa_buffer.buffer, structa_buffer.memory, 0);
+
+	return structa_buffer;
+}
+
+uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags properties)
+{
+
+	VkPhysicalDeviceMemoryProperties memory_properties = { 0 };
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+
+	for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i)
+	{
+		if ((type_filter & (i << 1)) && (memory_properties.memoryTypes[i].propertyFlags & properties) == properties)
+		{
+			return i;
+		}
+	}
+
+	return -1;
 }

@@ -1,5 +1,6 @@
 #include "structa_core.h"
 #include "structa_internal.h"
+#include "structa_helpers.h"
 #include "structa_utils.h"
 
 static VkInstance structa_renderer_create_instance();
@@ -52,6 +53,9 @@ StResult stCreateRenderer(StRenderer* renderer)
 	if (structa_renderer_create_swapchain_image_views(internal_renderer->device, internal_renderer->swapchain_format, internal_renderer->swapchain_images, internal_renderer->swapchain_image_count, internal_renderer->swapchain_image_views) != ST_SUCCESS)
 		return ST_ERROR;
 
+	if ((internal_renderer->pipeline = structa_create_default_pipeline(internal_renderer->device, internal_renderer->swapchain_format, &internal_renderer->layout)) == NULL)
+		return ST_ERROR;
+
 	if ((internal_renderer->command_pool = structa_renderer_create_command_pool(internal_renderer->device, internal_renderer->graphics_queue_family)) == NULL)
 		return ST_ERROR;
 
@@ -94,6 +98,8 @@ void stDestroyRenderer()
 		vkDestroySemaphore(internal_renderer->device, internal_renderer->acquire_semaphore[i], NULL);
 	}
 	
+	vkDestroyPipelineLayout(internal_renderer->device, internal_renderer->layout, NULL);
+	vkDestroyPipeline(internal_renderer->device, internal_renderer->pipeline, NULL);
 	vkDestroyCommandPool(internal_renderer->device, internal_renderer->command_pool, NULL);
 	vkDestroySwapchainKHR(internal_renderer->device, internal_renderer->swapchain, NULL);
 	vkDestroyDevice(internal_renderer->device, NULL);
@@ -142,7 +148,7 @@ void stRender(StRenderer r)
 		1, &image_barrier_write
 	);
 
-	VkClearValue clear_color = { {{0.2f, 0.2f, 0.2f, 1.0f}} };
+	VkClearValue clear_color = { {{0.1f, 0.1f, 0.1f, 1.0f}} };
 
 	VkRenderingAttachmentInfo color_attachment = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -182,6 +188,10 @@ void stRender(StRenderer r)
 
 	vkCmdSetViewport(r->command_buffers[r->frame], 0, 1, &viewport);
 	vkCmdSetScissor(r->command_buffers[r->frame], 0, 1, &scissor);
+
+	vkCmdBindPipeline(r->command_buffers[r->frame], VK_PIPELINE_BIND_POINT_GRAPHICS, r->pipeline);
+
+	stDrawTriangle(r->command_buffers[r->frame]);
 
 	vkCmdEndRendering(r->command_buffers[r->frame]);
 

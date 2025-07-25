@@ -34,6 +34,8 @@ typedef struct StRenderer_T {
 	VkImage swapchain_images[5];
 	VkImageView swapchain_image_views[5];
 	uint32_t swapchain_image_count;
+	VkPipeline pipeline;
+	VkPipelineLayout layout;
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
 	VkSemaphore acquire_semaphore[MAX_FRAMES_IN_FLIGHT];
@@ -42,6 +44,11 @@ typedef struct StRenderer_T {
 	uint32_t image_index;
 	uint32_t frame;
 } StRenderer_T;
+
+typedef struct StBuffer {
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+} StBuffer;
 
 typedef struct StStructaSystem_T {
 	void* storage;
