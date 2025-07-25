@@ -28,6 +28,11 @@ typedef struct StWindowCreateInfo {
 	uint32_t height;
 } StWindowCreateInfo;
 
+typedef struct StVertex {
+	float position[3];
+	float color[3];
+} StVertex;
+
 StResult stInit();
 
 void stShutdown();
@@ -47,5 +52,7 @@ void stRender(StRenderer renderer);
 bool stWindowShouldClose(StWindow window);
 
 void stPollEvents();
+
+VkDevice structa_get_device(StRenderer renderer);
 
 #endif // STRUCTA_CORE_H_

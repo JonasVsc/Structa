@@ -11,12 +11,19 @@ void setup()
 
 	StWindowCreateInfo window_create_info = {
 		.title = "Structa application",
-		.width = 640,
-		.height = 480
+		.width = 1280,
+		.height = 720
 	};
 
 	stCreateWindow(&window_create_info, &g_app.window);
 	stCreateRenderer(&g_app.renderer);
+
+
+	StGuiInitInfo gui_init_info = {
+		.device = structa_get_device(g_app.renderer),
+	};
+
+	stInitGuiSystem(&gui_init_info);
 }
 
 void run()
@@ -30,6 +37,7 @@ void run()
 
 void cleanup()
 {
+	stShutdownGuiSystem();
 	stDestroyRenderer();
 	stDestroyWindow();
 	stShutdown();

@@ -455,8 +455,8 @@ static VkExtent2D structa_renderer_select_surface_extent(VkPhysicalDevice physic
 		extent.width = width;
 		extent.height = height;
 
-		extent.width = clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-		extent.height = clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+		extent.width = structa_clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+		extent.height = structa_clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 	}
 
 	return extent;

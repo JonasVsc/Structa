@@ -51,6 +51,11 @@ void stPollEvents()
 	}
 }
 
+VkDevice structa_get_device(StRenderer renderer)
+{
+	return renderer->device;
+}
+
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
