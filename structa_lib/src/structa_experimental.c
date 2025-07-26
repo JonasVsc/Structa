@@ -1,7 +1,6 @@
 #include "structa_internal.h"
+#include "shared/structa_helpers.h"
 #include "structa_core.h"
-#include "structa_helpers.h"
-
 
 // temporary
 StBuffer triangle_buffer = { 0 };

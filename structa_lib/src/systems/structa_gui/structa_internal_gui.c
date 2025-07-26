@@ -1,5 +1,5 @@
 #include "structa_internal_gui.h"
-#include "structa_helpers.h"
+#include "shared/structa_helpers.h"
 #include "structa_gui.h"
 
 

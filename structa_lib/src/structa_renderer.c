@@ -1,6 +1,6 @@
 #include "structa_core.h"
 #include "structa_internal.h"
-#include "structa_helpers.h"
+#include "shared/structa_helpers.h"
 #include "structa_utils.h"
 
 static VkInstance structa_renderer_create_instance();
