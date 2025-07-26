@@ -37,18 +37,29 @@ typedef struct StRenderer_T {
 	VkPipeline pipeline;
 	VkPipelineLayout layout;
 	VkCommandPool command_pool;
+	VkCommandPool immediate_command_pool;
 	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
+	VkCommandBuffer immediate_command_buffer;
 	VkSemaphore acquire_semaphore[MAX_FRAMES_IN_FLIGHT];
 	VkSemaphore submit_semaphore[5];
 	VkFence frame_fence[5];
+	VkFence immediate_fence;
 	uint32_t image_index;
 	uint32_t frame;
 } StRenderer_T;
 
-typedef struct StBuffer {
-	VkBuffer buffer;
-	VkDeviceMemory memory;
-} StBuffer;
+typedef struct GPUMeshBuffers {
+	VkBuffer vertex_buffer;
+	VkDeviceMemory vertex_memory;
+	VkBuffer index_buffer;
+	VkDeviceMemory index_memory;
+	VkDeviceAddress vertex_buffer_address;
+} GPUMeshBuffers;
+
+typedef struct GPUDrawPushConstants {
+	float world_matrix[16];
+	VkDeviceAddress vertex_buffer;
+} GPUDrawPushConstants;
 
 typedef struct StStructaSystem_T {
 	void* storage;

@@ -30,7 +30,10 @@ typedef struct StWindowCreateInfo {
 
 typedef struct StVertex {
 	float position[3];
-	float color[3];
+	float uv_x;
+	float normal[3];
+	float uv_y;
+	float color[4];
 } StVertex;
 
 StResult stInit();
@@ -55,14 +58,13 @@ void stPollEvents();
 
 VkDevice structa_get_device(StRenderer renderer);
 
+// EXPERIMENTAL 2
 
-// EXPERIMENTAL
+void stCreateTriangle2();
 
-void stCreateTriangle();
+void stDrawTriangle2(VkCommandBuffer cmd);
 
-void stDrawTriangle(VkCommandBuffer cmd);
-
-void stDestroyTriangle();
+void stDestroyTriangle2();
 
 
 #endif // STRUCTA_CORE_H_

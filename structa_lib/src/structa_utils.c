@@ -1,6 +1,6 @@
 #include "structa_utils.h"
 
-structa_clamp(uint32_t val, uint32_t min, uint32_t max)
+uint32_t structa_clamp(uint32_t val, uint32_t min, uint32_t max)
 {
     return val < min ? min : (val > max ? max : val);
 }
@@ -43,4 +43,20 @@ DWORD* structa_read_file(const char* file_path, size_t* file_size)
     *file_size = size;
 
     return buffer;
+}
+
+uint32_t structa_find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties memory_properties = { 0 };
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i)
+    {
+        if ((type_filter & (i << 1)) && (memory_properties.memoryTypes[i].propertyFlags & properties) == properties)
+        {
+            return i;
+        }
+    }
+
+    return -1;
 }

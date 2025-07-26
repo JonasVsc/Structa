@@ -18,7 +18,7 @@ void setup()
 	stCreateWindow(&window_create_info, &g_app.window);
 	stCreateRenderer(&g_app.renderer);
 
-	stCreateTriangle();
+	stCreateTriangle2();
 
 	StGuiInitInfo gui_init_info = {
 		.device = structa_get_device(g_app.renderer),
@@ -38,7 +38,7 @@ void run()
 
 void cleanup()
 {
-	stDestroyTriangle();
+	stDestroyTriangle2();
 	stShutdownGuiSystem();
 	stDestroyRenderer();
 	stDestroyWindow();

@@ -25,6 +25,7 @@ add_library(structa_lib SHARED
     # SYSTEMS
     ${STRUCTA_GUI}
     "src/structa_utils.c"
+    
     "src/structa_experimental.c"
 )
 

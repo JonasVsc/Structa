@@ -14,7 +14,7 @@ static VkExtent2D structa_renderer_select_surface_extent(VkPhysicalDevice physic
 static VkSwapchainKHR structa_renderer_create_swapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR swapchain_format, VkExtent2D swapchain_extent, VkDevice device, uint32_t* image_count);
 static VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint32_t queue_family);
 static StResult structa_renderer_create_swapchain_image_views(VkDevice device, VkSurfaceFormatKHR swapchain_format, VkImage* swapchain_images, uint32_t swapchain_image_count, VkImageView* swapchain_image_views);
-static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers);
+static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers, uint32_t command_buffer_count);
 static StResult structa_renderer_create_semaphore(VkDevice device, VkSemaphore* semaphore, uint32_t semaphore_count);
 static StResult structa_renderer_create_fence(VkDevice device, VkFence* fence, uint32_t fence_count);
 
@@ -59,7 +59,13 @@ StResult stCreateRenderer(StRenderer* renderer)
 	if ((internal_renderer->command_pool = structa_renderer_create_command_pool(internal_renderer->device, internal_renderer->graphics_queue_family)) == NULL)
 		return ST_ERROR;
 
-	if (structa_renderer_allocate_command_buffers(internal_renderer->device, internal_renderer->command_pool, internal_renderer->command_buffers) != ST_SUCCESS)
+	if ((internal_renderer->immediate_command_pool = structa_renderer_create_command_pool(internal_renderer->device, internal_renderer->graphics_queue_family)) == NULL)
+		return ST_ERROR;
+
+	if (structa_renderer_allocate_command_buffers(internal_renderer->device, internal_renderer->command_pool, internal_renderer->command_buffers, MAX_FRAMES_IN_FLIGHT) != ST_SUCCESS)
+		return ST_ERROR;
+
+	if (structa_renderer_allocate_command_buffers(internal_renderer->device, internal_renderer->immediate_command_pool, &internal_renderer->immediate_command_buffer, 1) != ST_SUCCESS)
 		return ST_ERROR;
 
 	if (structa_renderer_create_semaphore(internal_renderer->device, internal_renderer->acquire_semaphore, MAX_FRAMES_IN_FLIGHT) != ST_SUCCESS)
@@ -69,6 +75,9 @@ StResult stCreateRenderer(StRenderer* renderer)
 		return ST_ERROR;
 	
 	if (structa_renderer_create_fence(internal_renderer->device, internal_renderer->frame_fence, MAX_FRAMES_IN_FLIGHT) != ST_SUCCESS)
+		return ST_ERROR;
+
+	if (structa_renderer_create_fence(internal_renderer->device, &internal_renderer->immediate_fence, 1) != ST_SUCCESS)
 		return ST_ERROR;
 
 
@@ -98,9 +107,11 @@ void stDestroyRenderer()
 		vkDestroySemaphore(internal_renderer->device, internal_renderer->acquire_semaphore[i], NULL);
 	}
 	
+	vkDestroyFence(internal_renderer->device, internal_renderer->immediate_fence, NULL);
 	vkDestroyPipelineLayout(internal_renderer->device, internal_renderer->layout, NULL);
 	vkDestroyPipeline(internal_renderer->device, internal_renderer->pipeline, NULL);
 	vkDestroyCommandPool(internal_renderer->device, internal_renderer->command_pool, NULL);
+	vkDestroyCommandPool(internal_renderer->device, internal_renderer->immediate_command_pool, NULL);
 	vkDestroySwapchainKHR(internal_renderer->device, internal_renderer->swapchain, NULL);
 	vkDestroyDevice(internal_renderer->device, NULL);
 	vkDestroySurfaceKHR(internal_renderer->instance, internal_renderer->surface, NULL);
@@ -191,7 +202,7 @@ void stRender(StRenderer r)
 
 	vkCmdBindPipeline(r->command_buffers[r->frame], VK_PIPELINE_BIND_POINT_GRAPHICS, r->pipeline);
 
-	stDrawTriangle(r->command_buffers[r->frame]);
+	stDrawTriangle2(r->command_buffers[r->frame]);
 
 	vkCmdEndRendering(r->command_buffers[r->frame]);
 
@@ -551,12 +562,12 @@ static VkCommandPool structa_renderer_create_command_pool(VkDevice device, uint3
 	return command_pool;
 }
 
-static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers)
+static StResult structa_renderer_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, VkCommandBuffer* command_buffers, uint32_t command_buffer_count)
 {
 	VkCommandBufferAllocateInfo command_buffer_alloc_info = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = command_pool,
-		.commandBufferCount = MAX_FRAMES_IN_FLIGHT,
+		.commandBufferCount = command_buffer_count,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 	};
 
