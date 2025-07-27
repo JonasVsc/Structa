@@ -60,7 +60,167 @@ void stDestroyRenderer()
 	vkDestroyInstance(ctx->instance, NULL);
 }
 
-void stRender()
+//void stRender()
+//{
+//	StRenderer r = &StructaContext->renderer;
+//
+//	vkWaitForFences(r->device, 1, &r->frame_fence[r->frame], VK_TRUE, UINT64_MAX);
+//	vkResetFences(r->device, 1, &r->frame_fence[r->frame]);
+//
+//	VkResult acquire_result = vkAcquireNextImageKHR(r->device, r->swapchain, UINT64_MAX, r->acquire_semaphore[r->frame], VK_NULL_HANDLE, &r->image_index);
+//
+//	if (acquire_result != VK_SUCCESS)
+//	{
+//		printf("error acquire swapchain image!\n");
+//		StructaContext->window.close = true;
+//		return;
+//	}
+//
+//	vkResetCommandBuffer(r->command_buffers[r->frame], 0);
+//
+//	VkCommandBufferBeginInfo cmd_begin = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+//
+//	vkBeginCommandBuffer(r->command_buffers[r->frame], &cmd_begin);
+//
+//	VkImageMemoryBarrier image_barrier_write = {
+//		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+//		.srcAccessMask = VK_PIPELINE_STAGE_NONE,
+//		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+//		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+//		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+//		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//		.image = r->swapchain_images[r->image_index],
+//		.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+//	};
+//
+//	vkCmdPipelineBarrier(
+//		r->command_buffers[r->frame],
+//		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+//		0,
+//		0, NULL,
+//		0, NULL,
+//		1, &image_barrier_write
+//	);
+//
+//	VkClearValue clear_color = { {{0.1f, 0.1f, 0.1f, 1.0f}} };
+//
+//	VkRenderingAttachmentInfo color_attachment = {
+//		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+//		.imageView = r->swapchain_image_views[r->image_index],
+//		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+//		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+//		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+//		.clearValue = clear_color,
+//	};
+//
+//	VkRect2D render_area = {
+//		.offset = {0},
+//		.extent = r->swapchain_extent
+//	};
+//
+//	VkRenderingInfo render_info = {
+//		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+//		.renderArea = render_area,
+//		.layerCount = 1,
+//		.colorAttachmentCount = 1,
+//		.pColorAttachments = &color_attachment,
+//	};
+//
+//	vkCmdBeginRendering(r->command_buffers[r->frame], &render_info);
+//
+//	VkViewport viewport = {
+//		.width = (float)r->swapchain_extent.width,
+//		.height = (float)r->swapchain_extent.height,
+//		.minDepth = 0.0f,
+//		.maxDepth = 1.0f
+//	};
+//
+//	VkRect2D scissor = {
+//		.offset = {0, 0},
+//		.extent = r->swapchain_extent
+//	};
+//
+//	vkCmdSetViewport(r->command_buffers[r->frame], 0, 1, &viewport);
+//	vkCmdSetScissor(r->command_buffers[r->frame], 0, 1, &scissor);
+//
+//	vkCmdBindPipeline(r->command_buffers[r->frame], VK_PIPELINE_BIND_POINT_GRAPHICS, r->pipeline);
+//
+//	for (MeshId i = 0; i < StructaContext->mesh_count; ++i)
+//	{
+//		StPushConstants_T push = { 0 };
+//		push.vertex_address = StructaContext->meshes[i].vertex_address;
+//
+//		vkCmdPushConstants(r->command_buffers[r->frame], StructaContext->renderer.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(StPushConstants_T), &push);
+//		vkCmdBindIndexBuffer(r->command_buffers[r->frame], StructaContext->meshes[i].index_buffer, 0, VK_INDEX_TYPE_UINT32);
+//		vkCmdDrawIndexed(r->command_buffers[r->frame], StructaContext->meshes[i].index_count, 1, 0, 0, 0);
+//	}
+//
+//	vkCmdEndRendering(r->command_buffers[r->frame]);
+//
+//	VkImageMemoryBarrier image_barrier_present = {
+//		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+//		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+//		.dstAccessMask = 0,
+//		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+//		.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+//		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//		.image = r->swapchain_images[r->image_index],
+//		.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}
+//	};
+//
+//	vkCmdPipelineBarrier(
+//		r->command_buffers[r->frame],
+//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+//		0,
+//		0, NULL,
+//		0, NULL,
+//		1, &image_barrier_present
+//	);
+//
+//	vkEndCommandBuffer(r->command_buffers[r->frame]);
+//
+//	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+//	VkSemaphore wait_semaphores[] = { r->acquire_semaphore[r->frame] };
+//	VkSemaphore signal_semaphores[] = { r->submit_semaphore[r->frame] };
+//
+//	VkSubmitInfo submit_info = {
+//		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+//		.waitSemaphoreCount = 1,
+//		.pWaitSemaphores = wait_semaphores,
+//		.pWaitDstStageMask = wait_stages,
+//		.commandBufferCount = 1,
+//		.pCommandBuffers = &r->command_buffers[r->frame],
+//		.signalSemaphoreCount = 1,
+//		.pSignalSemaphores = signal_semaphores
+//	};
+//
+//	vkQueueSubmit(r->graphics_queue, 1, &submit_info, r->frame_fence[r->frame]);
+//
+//	VkSwapchainKHR swapchains[]  = {r->swapchain};
+//
+//	VkPresentInfoKHR present_info = {
+//		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+//		.waitSemaphoreCount = 1,
+//		.pWaitSemaphores = signal_semaphores,
+//		.swapchainCount = 1,
+//		.pSwapchains = swapchains,
+//		.pImageIndices = &r->image_index
+//	};
+//
+//	VkResult present_result = vkQueuePresentKHR(r->graphics_queue, &present_info);
+//	if (present_result != VK_SUCCESS)
+//	{
+//		printf("error acquire swapchain image!\n");
+//		StructaContext->window.close = true;
+//		return;
+//	}
+//
+//	r->frame = (r->frame + 1) % MAX_FRAMES_IN_FLIGHT;
+//}
+
+void stBeginFrame()
 {
 	StRenderer r = &StructaContext->renderer;
 
@@ -145,7 +305,11 @@ void stRender()
 	vkCmdSetScissor(r->command_buffers[r->frame], 0, 1, &scissor);
 
 	vkCmdBindPipeline(r->command_buffers[r->frame], VK_PIPELINE_BIND_POINT_GRAPHICS, r->pipeline);
-	stDrawTriangle(r->command_buffers[r->frame]);
+}
+
+void stEndFrame()
+{
+	StRenderer r = &StructaContext->renderer;
 
 	vkCmdEndRendering(r->command_buffers[r->frame]);
 
@@ -189,7 +353,7 @@ void stRender()
 
 	vkQueueSubmit(r->graphics_queue, 1, &submit_info, r->frame_fence[r->frame]);
 
-	VkSwapchainKHR swapchains[]  = {r->swapchain};
+	VkSwapchainKHR swapchains[] = { r->swapchain };
 
 	VkPresentInfoKHR present_info = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -524,7 +688,7 @@ StResult create_pipeline(StRenderer ctx)
 	};
 
 	VkVertexInputBindingDescription binding_descriptions[] = {
-		{0, sizeof(StVertex), VK_VERTEX_INPUT_RATE_VERTEX}
+		{0, sizeof(StVertex_T), VK_VERTEX_INPUT_RATE_VERTEX}
 	};
 
 	VkPipelineVertexInputStateCreateInfo vertex_input_create_info = {
@@ -596,7 +760,7 @@ StResult create_pipeline(StRenderer ctx)
 	VkPushConstantRange buffer_range = {
 		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
 		.offset = 0,
-		.size = sizeof(GPUDrawPushConstants)
+		.size = sizeof(StPushConstants_T)
 	};
 
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {

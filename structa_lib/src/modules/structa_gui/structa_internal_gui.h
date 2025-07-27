@@ -1,18 +1,28 @@
 #include "structa_core.h"
 
-typedef struct StGui_T* StGui;
+#include <vulkan/vulkan.h>
 
-typedef struct StGui_T {
+typedef struct StGuiContext_T* StGuiContext;
+
+typedef struct StGuiContext_T {
 	VkDevice device;
-	VkSurfaceFormatKHR surface_format;
+	VkQueue queue;
+	uint32_t queue_family;
+	VkFormat format;
 	VkPipeline pipeline;
 	VkPipelineLayout layout;
-} StGui_T;
+} StGuiContext_T;
 
-typedef struct StGuiSystem_T {
-	void* storage;
-	StGui_T* ptr_gui;
-	size_t size;
-} StGuiSystem_T;
+typedef struct StGuiVertex_T {
+	float pos[2];
+	float color[3];
+} StGuiVertex_T;
 
-StGui structa_internal_get_gui_system_ptr();
+typedef struct StGuiPushConstants_T {
+	VkDeviceAddress vertex_buffer;
+} StGuiPushConstants_T;
+
+extern StGuiContext StructaGuiCtx;
+
+
+void create_gui_pipeline(StGuiContext ctx);

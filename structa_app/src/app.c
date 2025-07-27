@@ -1,4 +1,6 @@
 #include "structa.h"
+#include "structa_gui.h"
+
 #include <stdio.h>
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -9,18 +11,35 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	freopen_s(&file, "CONOUT$", "w", stdout);
 
 	stInit();
+
 	stCreateWindow("Structa Application", 640, 480);
 	stCreateRenderer();
 
-	stCreateTriangle();
+	StContextInfo ctx_info = stGetContextInfo();
+
+	StGuiInitInfo gui_init_info = {
+		.device = ctx_info.device,
+		.queue = ctx_info.queue,
+		.queue_family = ctx_info.queue_family,
+		.format = ctx_info.format
+	};
+
+	stInitGuiSystem(&gui_init_info);
+	
+	MeshId triangle_mesh = stLoadMesh();
 
 	while (!stWindowShouldClose())
 	{
-		stRender();
+		stBeginFrame();
+
+		stDraw(triangle_mesh);
+
+		stEndFrame();
 		stPollEvents();
 	}
 
-	stDestroyTriangle();
+	stFreeMeshes();
+	stShutdownGuiSystem();
 	stDestroyRenderer();
 	stDestroyWindow();
 	stShutdown();

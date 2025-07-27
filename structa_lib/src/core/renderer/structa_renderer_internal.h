@@ -9,6 +9,7 @@
 #include <vulkan/vulkan.h>
 
 typedef struct StRenderer_T* StRenderer;
+typedef struct StMesh_T* StMesh;
 
 typedef struct StRenderer_T {
 	VkInstance instance;
@@ -37,27 +38,27 @@ typedef struct StRenderer_T {
 	uint32_t frame;
 } StRenderer_T;
 
-typedef struct StVertex {
+typedef struct StVertex_T {
 	float position[3];
 	float uv_x;
 	float normal[3];
 	float uv_y;
 	float color[4];
-} StVertex;
+} StVertex_T;
 
-typedef struct GPUDrawPushConstants {
+typedef struct StPushConstants_T {
 	float world_matrix[16];
 	VkDeviceAddress vertex_address;
-} GPUDrawPushConstants;
+} StPushConstants_T;
 
-typedef struct GPUMeshBuffers {
+typedef struct StMesh_T {
 	VkBuffer vertex_buffer;
 	VkDeviceMemory vertex_memory;
 	VkDeviceAddress vertex_address;
 	VkBuffer index_buffer;
 	VkDeviceMemory index_memory;
 	uint32_t index_count;
-} GPUMeshBuffers;
+} StMesh_T;
 
 StResult create_instance(StRenderer ctx);
 StResult create_surface(StRenderer ctx);

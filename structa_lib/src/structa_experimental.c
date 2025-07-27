@@ -3,18 +3,19 @@
 
 #include "common/utils.h"
 
-// temporary
-GPUMeshBuffers triangle_mesh = { 0 };
-
-void stCreateTriangle()
+MeshId stLoadMesh()
 {
 	StRenderer renderer = &StructaContext->renderer;
+	if (StructaContext->mesh_count >= StructaContext->mesh_capacity)
+		return UINT64_MAX;
+
+	StMesh mesh = &StructaContext->meshes[StructaContext->mesh_count];
 
 	// mesh data
-	StVertex vertices[] = {
-		{ .position = { 0.0f, -0.5f, 0.0f }, .color = { 1.0f, 0.0f, 0.0f, 1.0f } },
-		{ .position = { 0.5f,  0.5f, 0.0f }, .color = { 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ .position = {-0.5f,  0.5f, 0.0f }, .color = { 0.0f, 0.0f, 1.0f, 1.0f } },
+	StVertex_T vertices[] = {
+		{.position = { 0.0f, -0.5f, 0.0f }, .color = { 1.0f, 0.0f, 0.0f, 1.0f } },
+		{.position = { 0.5f,  0.5f, 0.0f }, .color = { 0.0f, 1.0f, 0.0f, 1.0f } },
+		{.position = {-0.5f,  0.5f, 0.0f }, .color = { 0.0f, 0.0f, 1.0f, 1.0f } },
 	};
 
 	uint32_t indices[] = {
@@ -32,10 +33,11 @@ void stCreateTriangle()
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 	};
 
-	vkCreateBuffer(renderer->device, &vertex_buffer_create_info, NULL, &triangle_mesh.vertex_buffer);
+	if (vkCreateBuffer(renderer->device, &vertex_buffer_create_info, NULL, &mesh->vertex_buffer) != VK_SUCCESS)
+		return UINT64_MAX;
 
 	VkMemoryRequirements vertex_buffer_memory_requirements;
-	vkGetBufferMemoryRequirements(renderer->device, triangle_mesh.vertex_buffer, &vertex_buffer_memory_requirements);
+	vkGetBufferMemoryRequirements(renderer->device, mesh->vertex_buffer, &vertex_buffer_memory_requirements);
 
 	VkMemoryAllocateFlagsInfo flags_info = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
@@ -50,17 +52,21 @@ void stCreateTriangle()
 													VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 	};
 
-	vkAllocateMemory(renderer->device, &vertex_memory_allocate_info, NULL, &triangle_mesh.vertex_memory);
-	vkBindBufferMemory(renderer->device, triangle_mesh.vertex_buffer, triangle_mesh.vertex_memory, 0);
+	if (vkAllocateMemory(renderer->device, &vertex_memory_allocate_info, NULL, &mesh->vertex_memory) != VK_SUCCESS)
+		return UINT64_MAX;
+
+	if (vkBindBufferMemory(renderer->device, mesh->vertex_buffer, mesh->vertex_memory, 0) != VK_SUCCESS)
+		return UINT64_MAX;
+
 	// end vertex buffer
 
 	// get vertex_buffer_address
 	VkBufferDeviceAddressInfo vertex_address_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-		.buffer = triangle_mesh.vertex_buffer
+		.buffer = mesh->vertex_buffer
 	};
 
-	triangle_mesh.vertex_address = vkGetBufferDeviceAddress(renderer->device, &vertex_address_info);
+	mesh->vertex_address = vkGetBufferDeviceAddress(renderer->device, &vertex_address_info);
 	// end vertex_buffer_address
 
 	// index buffer
@@ -70,10 +76,11 @@ void stCreateTriangle()
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT
 	};
 
-	vkCreateBuffer(renderer->device, &index_buffer_create_info, NULL, &triangle_mesh.index_buffer);
+	if (vkCreateBuffer(renderer->device, &index_buffer_create_info, NULL, &mesh->index_buffer) != VK_SUCCESS)
+		return UINT64_MAX;
 
 	VkMemoryRequirements index_buffer_memory_requirements;
-	vkGetBufferMemoryRequirements(renderer->device, triangle_mesh.index_buffer, &index_buffer_memory_requirements);
+	vkGetBufferMemoryRequirements(renderer->device, mesh->index_buffer, &index_buffer_memory_requirements);
 
 	VkMemoryAllocateInfo index_memory_allocate_info = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -82,8 +89,12 @@ void stCreateTriangle()
 													VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 	};
 
-	vkAllocateMemory(renderer->device, &index_memory_allocate_info, NULL, &triangle_mesh.index_memory);
-	vkBindBufferMemory(renderer->device, triangle_mesh.index_buffer, triangle_mesh.index_memory, 0);
+	if (vkAllocateMemory(renderer->device, &index_memory_allocate_info, NULL, &mesh->index_memory) != VK_SUCCESS)
+		return UINT64_MAX;
+
+	if (vkBindBufferMemory(renderer->device, mesh->index_buffer, mesh->index_memory, 0) != VK_SUCCESS)
+		return UINT64_MAX;
+
 	// end index buffer
 
 	// staging buffer
@@ -95,7 +106,8 @@ void stCreateTriangle()
 		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
 	};
 
-	vkCreateBuffer(renderer->device, &staging_buffer_create_info, NULL, &staging_buffer);
+	if (vkCreateBuffer(renderer->device, &staging_buffer_create_info, NULL, &staging_buffer) != VK_SUCCESS)
+		return UINT64_MAX;
 
 	VkMemoryRequirements staging_buffer_memory_requirements;
 	vkGetBufferMemoryRequirements(renderer->device, staging_buffer, &staging_buffer_memory_requirements);
@@ -108,8 +120,12 @@ void stCreateTriangle()
 	};
 
 	VkDeviceMemory staging_memory;
-	vkAllocateMemory(renderer->device, &staging_memory_allocate_info, NULL, &staging_memory);
-	vkBindBufferMemory(renderer->device, staging_buffer, staging_memory, 0);
+	if (vkAllocateMemory(renderer->device, &staging_memory_allocate_info, NULL, &staging_memory) != VK_SUCCESS)
+		return UINT64_MAX;
+
+	if (vkBindBufferMemory(renderer->device, staging_buffer, staging_memory, 0) != VK_SUCCESS)
+		return UINT64_MAX;
+
 
 	void* data;
 	vkMapMemory(renderer->device, staging_memory, 0, vertex_buffer_size + index_buffer_size, 0, &data);
@@ -119,15 +135,19 @@ void stCreateTriangle()
 	// end staging buffer
 
 	// record copy command
-	vkResetFences(renderer->device, 1, &renderer->immediate_fence);
-	vkResetCommandBuffer(renderer->immediate_command_buffer, 0);
+	if (vkResetFences(renderer->device, 1, &renderer->immediate_fence) != VK_SUCCESS)
+		return UINT64_MAX;
+
+	if (vkResetCommandBuffer(renderer->immediate_command_buffer, 0) != VK_SUCCESS)
+		return UINT64_MAX;
 
 	VkCommandBufferBeginInfo begin_info = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 	};
 
-	vkBeginCommandBuffer(renderer->immediate_command_buffer, &begin_info);
+	if (vkBeginCommandBuffer(renderer->immediate_command_buffer, &begin_info) != VK_SUCCESS)
+		return UINT64_MAX;
 
 	VkBufferCopy vertex_copy = {
 		.srcOffset = 0,
@@ -135,7 +155,7 @@ void stCreateTriangle()
 		.size = (VkDeviceSize)vertex_buffer_size
 	};
 
-	vkCmdCopyBuffer(renderer->immediate_command_buffer, staging_buffer, triangle_mesh.vertex_buffer, 1, &vertex_copy);
+	vkCmdCopyBuffer(renderer->immediate_command_buffer, staging_buffer, mesh->vertex_buffer, 1, &vertex_copy);
 
 	VkBufferCopy index_copy = {
 		.srcOffset = (VkDeviceSize)vertex_buffer_size,
@@ -143,53 +163,60 @@ void stCreateTriangle()
 		.size = (VkDeviceSize)index_buffer_size
 	};
 
-	vkCmdCopyBuffer(renderer->immediate_command_buffer, staging_buffer, triangle_mesh.index_buffer, 1, &index_copy);
+	vkCmdCopyBuffer(renderer->immediate_command_buffer, staging_buffer, mesh->index_buffer, 1, &index_copy);
 	// end record
 
-	// submit command
-	VkCommandBufferSubmitInfo cmd_info = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-		.commandBuffer = renderer->immediate_command_buffer
-	};
-
+	// submit
 	VkSubmitInfo submit = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &renderer->immediate_command_buffer
 	};
 
-	vkEndCommandBuffer(renderer->immediate_command_buffer);
-	vkQueueSubmit(renderer->graphics_queue, 1, &submit, renderer->immediate_fence);
+	if (vkEndCommandBuffer(renderer->immediate_command_buffer) != VK_SUCCESS)
+		return UINT64_MAX;
 
-	vkWaitForFences(renderer->device, 1, &renderer->immediate_fence, VK_TRUE, UINT64_MAX);
+	if (vkQueueSubmit(renderer->graphics_queue, 1, &submit, renderer->immediate_fence) != VK_SUCCESS)
+		return UINT64_MAX;
+
+	if (vkWaitForFences(renderer->device, 1, &renderer->immediate_fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
+		return UINT64_MAX;
 	// end submit
 
-
-	// cleanup staging buffer
 	vkDestroyBuffer(renderer->device, staging_buffer, NULL);
 	vkFreeMemory(renderer->device, staging_memory, NULL);
+
+	mesh->index_count = 3;
+
+	if (StructaContext->mesh_count < StructaContext->mesh_capacity)
+		return StructaContext->mesh_count++;
+
+	return UINT64_MAX;
 }
 
-void stDrawTriangle(VkCommandBuffer cmd)
+void stFreeMeshes()
 {
+	vkDeviceWaitIdle(StructaContext->renderer.device);
 
-	GPUDrawPushConstants push = { 0 };
-	push.vertex_address = triangle_mesh.vertex_address;
+	for (MeshId i = 0; i < StructaContext->mesh_count; ++i)
+	{
+		StMesh mesh = &StructaContext->meshes[i];
 
-	vkCmdPushConstants(cmd, StructaContext->renderer.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push);
-	vkCmdBindIndexBuffer(cmd, triangle_mesh.index_buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkDestroyBuffer(StructaContext->renderer.device, mesh->vertex_buffer, NULL);
+		vkFreeMemory(StructaContext->renderer.device, mesh->vertex_memory, NULL);
 
-	vkCmdDrawIndexed(cmd, 3, 1, 0, 0, 0);
+		vkDestroyBuffer(StructaContext->renderer.device, mesh->index_buffer, NULL);
+		vkFreeMemory(StructaContext->renderer.device, mesh->index_memory, NULL);
+	}
 }
 
-void stDestroyTriangle()
+void stDraw(MeshId id)
 {
-	StRenderer renderer = &StructaContext->renderer;
-	vkDeviceWaitIdle(renderer->device);
+	StPushConstants_T push = { 0 };
+	push.vertex_address = StructaContext->meshes[id].vertex_address;
 
-	vkDestroyBuffer(renderer->device, triangle_mesh.vertex_buffer, NULL);
-	vkFreeMemory(renderer->device, triangle_mesh.vertex_memory, NULL);
+	vkCmdPushConstants(StructaContext->renderer.command_buffers[StructaContext->renderer.frame], StructaContext->renderer.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(StPushConstants_T), &push);
+	vkCmdBindIndexBuffer(StructaContext->renderer.command_buffers[StructaContext->renderer.frame], StructaContext->meshes[id].index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-	vkDestroyBuffer(renderer->device, triangle_mesh.index_buffer, NULL);
-	vkFreeMemory(renderer->device, triangle_mesh.index_memory, NULL);
+	vkCmdDrawIndexed(StructaContext->renderer.command_buffers[StructaContext->renderer.frame], StructaContext->meshes[id].index_count, 1, 0, 0, 0);
 }

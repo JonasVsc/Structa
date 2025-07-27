@@ -3,10 +3,14 @@
 
 #include <vulkan/vulkan.h>
 
-void stCreateTriangle();
+typedef uint32_t MeshId;
 
-void stDrawTriangle(VkCommandBuffer cmd);
+// void stCreateTriangle();
 
-void stDestroyTriangle();
+MeshId stLoadMesh();
+
+void stFreeMeshes();
+
+void stDraw(MeshId mesh);
 
 #endif // STRUCTA_EXPERIMENTAL_H_

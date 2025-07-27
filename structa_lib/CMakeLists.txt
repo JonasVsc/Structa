@@ -1,4 +1,13 @@
 
+
+# ---- STRUCTA MODULES ----
+set(STRUCTA_GUI
+    "src/modules/structa_gui/structa_gui.c"
+)
+
+
+
+# ---- STRUCTA LIB ----
 set(STRUCTA_CORE
     "src/core/structa_context.c"
     "src/core/window/structa_window.c"
@@ -13,6 +22,7 @@ set(STRUCTA_COMMON
 add_library(structa_lib SHARED
     ${STRUCTA_COMMON}
     ${STRUCTA_CORE}
+    ${STRUCTA_GUI}
     "src/structa_experimental.c"
 )
 
