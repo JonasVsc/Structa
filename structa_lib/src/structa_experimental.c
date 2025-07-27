@@ -1,13 +1,14 @@
-#include "structa_internal.h"
-#include "structa_core.h"
-#include "structa_utils.h"
+#include "core/structa_context_internal.h"
+#include "structa_experimental.h"
+
+#include "common/utils.h"
 
 // temporary
 GPUMeshBuffers triangle_mesh = { 0 };
 
-void stCreateTriangle2()
+void stCreateTriangle()
 {
-	StRenderer renderer = structa_internal_renderer_ptr();
+	StRenderer renderer = &StructaContext->renderer;
 
 	// mesh data
 	StVertex vertices[] = {
@@ -45,7 +46,7 @@ void stCreateTriangle2()
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.pNext = &flags_info,
 		.allocationSize = vertex_buffer_memory_requirements.size,
-		.memoryTypeIndex = structa_find_memory_type(renderer->physical_device, vertex_buffer_memory_requirements.memoryTypeBits,
+		.memoryTypeIndex = find_memory_type(renderer->physical_device, vertex_buffer_memory_requirements.memoryTypeBits,
 													VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 	};
 
@@ -59,7 +60,7 @@ void stCreateTriangle2()
 		.buffer = triangle_mesh.vertex_buffer
 	};
 
-	triangle_mesh.vertex_buffer_address = vkGetBufferDeviceAddress(renderer->device, &vertex_address_info);
+	triangle_mesh.vertex_address = vkGetBufferDeviceAddress(renderer->device, &vertex_address_info);
 	// end vertex_buffer_address
 
 	// index buffer
@@ -77,7 +78,7 @@ void stCreateTriangle2()
 	VkMemoryAllocateInfo index_memory_allocate_info = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = index_buffer_memory_requirements.size,
-		.memoryTypeIndex = structa_find_memory_type(renderer->physical_device, index_buffer_memory_requirements.memoryTypeBits,
+		.memoryTypeIndex = find_memory_type(renderer->physical_device, index_buffer_memory_requirements.memoryTypeBits,
 													VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 	};
 
@@ -102,7 +103,7 @@ void stCreateTriangle2()
 	VkMemoryAllocateInfo staging_memory_allocate_info = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = staging_buffer_memory_requirements.size,
-		.memoryTypeIndex = structa_find_memory_type(renderer->physical_device, staging_buffer_memory_requirements.memoryTypeBits,
+		.memoryTypeIndex = find_memory_type(renderer->physical_device, staging_buffer_memory_requirements.memoryTypeBits,
 													VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
 	};
 
@@ -169,21 +170,21 @@ void stCreateTriangle2()
 	vkFreeMemory(renderer->device, staging_memory, NULL);
 }
 
-void stDrawTriangle2(VkCommandBuffer cmd)
+void stDrawTriangle(VkCommandBuffer cmd)
 {
 
 	GPUDrawPushConstants push = { 0 };
-	push.vertex_buffer = triangle_mesh.vertex_buffer_address;
+	push.vertex_address = triangle_mesh.vertex_address;
 
-	vkCmdPushConstants(cmd, structa_internal_renderer_ptr()->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push);
+	vkCmdPushConstants(cmd, StructaContext->renderer.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push);
 	vkCmdBindIndexBuffer(cmd, triangle_mesh.index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
 	vkCmdDrawIndexed(cmd, 3, 1, 0, 0, 0);
 }
 
-void stDestroyTriangle2()
+void stDestroyTriangle()
 {
-	StRenderer renderer = structa_internal_renderer_ptr();
+	StRenderer renderer = &StructaContext->renderer;
 	vkDeviceWaitIdle(renderer->device);
 
 	vkDestroyBuffer(renderer->device, triangle_mesh.vertex_buffer, NULL);

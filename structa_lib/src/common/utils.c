@@ -1,11 +1,11 @@
-#include "structa_utils.h"
+#include "utils.h"
 
-uint32_t structa_clamp(uint32_t val, uint32_t min, uint32_t max)
+uint32_t clamp(uint32_t val, uint32_t min, uint32_t max)
 {
     return val < min ? min : (val > max ? max : val);
 }
 
-DWORD* structa_read_file(const char* file_path, size_t* file_size)
+DWORD* read_file(const char* file_path, size_t* file_size)
 {
     HANDLE heap = GetProcessHeap();
 
@@ -45,7 +45,7 @@ DWORD* structa_read_file(const char* file_path, size_t* file_size)
     return buffer;
 }
 
-uint32_t structa_find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags properties)
+uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memory_properties = { 0 };
     vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
@@ -58,5 +58,5 @@ uint32_t structa_find_memory_type(VkPhysicalDevice physical_device, uint32_t typ
         }
     }
 
-    return -1;
+    return (uint32_t)-1;
 }

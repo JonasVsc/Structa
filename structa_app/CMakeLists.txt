@@ -14,7 +14,7 @@ find_program(
 add_custom_command(
     TARGET structa_app POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/structa_lib/src/shaders"
+            "${CMAKE_SOURCE_DIR}/structa_lib/shaders"
             "$<TARGET_FILE_DIR:structa_app>/shaders"
     COMMENT "Copiando diretório de shaders para o diretório do executável"
 )

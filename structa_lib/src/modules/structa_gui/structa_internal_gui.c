@@ -1,5 +1,4 @@
 #include "structa_internal_gui.h"
-#include "shared/structa_helpers.h"
 #include "structa_gui.h"
 
 
@@ -45,7 +44,7 @@ StGui structa_internal_get_gui_system_ptr()
 
 StResult structa_init_gui_resources(StGui gui)
 {
-	gui->pipeline = structa_create_default_pipeline(gui->device, gui->surface_format, &gui->layout);
+	// gui->pipeline = structa_create_default_pipeline(gui->device, gui->surface_format, &gui->layout);
 
 	if(gui->pipeline == VK_NULL_HANDLE)
 		return ST_ERROR;
