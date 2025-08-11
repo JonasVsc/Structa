@@ -1,43 +1,40 @@
 #include "structa.h"
-#include <Windows.h>
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
 	(void)hInstance;(void)hPrevInstance;(void)pCmdLine;(void)nCmdShow;
+	StructaCreateContext();
 
-	AllocConsole();
-
-	FILE* file;
-	freopen_s(&file, "CONOUT$", "w", stdout);
-
-	if (stInit() != ST_SUCCESS)
+	MSG msg;
+	for (;;)
 	{
-		printf("Failed structa init\n");
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		if (!StructaShouldClose()) 
+			break;
+
+		StructaBeginFrame();
+
+		StructaEndFrame();
 	}
 
-	StWindowCreateInfo window_create_info = {
-		.title = "Structa Application",
-		.width = 640,
-		.height = 480
-	};
-
-	StWindow window = { 0 };
-	stCreateWindow(&window_create_info, &window);
-	
-	StRenderer renderer = { 0 };
-	stCreateRenderer(&renderer);
-
-	while (!stWindowShouldClose(window))
-	{
-		stPollEvents();
-
-		stRender(renderer);
-	}
-
-	stDestroyRenderer();
-	stDestroyWindow();
-	stShutdown();
-
-	FreeConsole();
+	StructaShutdown();
 	return 0;
+}
+
+LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+	case WM_DESTROY:
+		StructaClose();
+		PostQuitMessage(0);
+		break;
+	}
+
+	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

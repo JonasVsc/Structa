@@ -6,29 +6,24 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 find_package(Vulkan)
 
-set(STRUCTA_INTERNAL
-    "structa_internal.c"
-)
+include_directories(src)
 
-set(STRUCTA_CORE
-    "structa_window.c"
-    "structa_renderer.c"
-)
+set(STRUCTA_SOURCE 
+    "src/structa_enum.h"
+    "src/structa_context.h"
+    "src/structa_context.c")
 
-add_library(structa_lib SHARED
-    ${STRUCTA_INTERNAL}
-    ${STRUCTA_CORE}
-)
+add_library(structa_lib STATIC
+    ${STRUCTA_SOURCE})
 
-target_link_libraries(structa_lib
-	PUBLIC Vulkan::Vulkan
-)
+target_link_libraries(structa_lib PUBLIC
+    Vulkan::Vulkan)
 
 add_executable(structa_app WIN32
-    "main.c"
-)
+    "main.c")
 
-target_link_libraries(structa_app PRIVATE structa_lib)
+target_link_libraries(structa_app PRIVATE 
+    structa_lib)
 
 # --- GLSL --- #
 
