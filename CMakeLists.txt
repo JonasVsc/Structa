@@ -14,7 +14,10 @@ set(STRUCTA_SOURCE
     "src/structa_enum.h"
     "src/structa_context.h"
     "src/structa_context.c"
-    "src/structa_loader.h")
+    "src/structa_loader.h"
+    "src/structa_table.h"
+    "src/structa_modules.h"
+    "src/structa_modules.c")
 
 add_library(structa_lib STATIC
     ${STRUCTA_SOURCE})

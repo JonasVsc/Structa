@@ -3,6 +3,7 @@
 
 #include "structa_enum.h"
 #include "structa_loader.h"
+#include "structa_table.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -55,10 +56,10 @@ typedef struct StructaContext_T {
 	bool close;
 
 	// Dynamic Modules
-	StructaModule_T MGui;
+	StructaModule_T Gui;
 
-	StructaPFN_T pfns;
-
+	// Hot Reload Registry
+	Structa_PFN_Table_T PFN_Table;
 } StructaContext_T;
 typedef struct StructaContext_T* StructaContext;
 

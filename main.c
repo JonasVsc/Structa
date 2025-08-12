@@ -5,45 +5,56 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	(void)hInstance;(void)hPrevInstance;(void)pCmdLine;(void)nCmdShow;
 	StructaCreateContext();
 
-	// Loader Init
-	StructaModule GuiModule = &GStructaContext->MGui;
+	StructaLoadGuiModule();
 
-	StructaLoadModule(GuiModule, "structa_gui.dll");
-	
-	// Load Function Ptrs
-	PFN_StructaInitGui fnStructaInitGui = (PFN_StructaInitGui)StructaLoaderGetFunc(GuiModule, "StructaInitGui");
-	PFN_StructaInitGui fnStructaShutdownGui = (PFN_StructaShutdownGui)StructaLoaderGetFunc(GuiModule, "StructaShutdownGui");
+	//// Hot Reload Registry
+	//Structa_PFN_Table PFN = &GStructaContext->PFN_Table;
 
-	if (fnStructaInitGui != NULL) { printf("[Loader] Loaded StructaInitGui Successfully!\n"); }
-	if (fnStructaShutdownGui != NULL) { printf("[Loader] Loaded StructaShutdownGui Successfully!\n"); }
+	//// Loader Init
+	//StructaModule Gui = &GStructaContext->Gui;
 
-	// Load new Gui Module
-	fnStructaInitGui();
+	//StructaLoadModule(Gui, "structa_gui.dll");
+	//
+	//// Load Function Ptrs
+	//PFN->StructaInitGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaInitGui");
+	//PFN->StructaShutdownGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaShutdownGui");
+
+	//if (PFN->StructaInitGui != NULL) { printf("[Loader] Loaded StructaInitGui Successfully!\n"); }
+	//if (PFN->StructaShutdownGui != NULL) { printf("[Loader] Loaded StructaShutdownGui Successfully!\n"); }
+
+	//// Load new Gui Module
+	//PFN->StructaInitGui();
 
 	MSG msg;
 	for (;;)
 	{
-		// HotReload Modules
-		if (StructaCheckVersion(GuiModule))
+		if (StructaCheckVersion(&GStructaContext->Gui))
 		{
-			// Unload Gui Module
-			fnStructaShutdownGui();
-
-			// Unload Lib
-			StructaFreeModule(GuiModule);
-
-			StructaLoadModule(GuiModule, NULL);
-
-			// Get new Gui Module
-			fnStructaInitGui = (PFN_StructaInitGui)StructaLoaderGetFunc(GuiModule, "StructaInitGui");
-			fnStructaShutdownGui = (PFN_StructaShutdownGui)StructaLoaderGetFunc(GuiModule, "StructaShutdownGui");
-
-			if (fnStructaInitGui != NULL) { printf("[Loader] Loaded StructaInitGui Successfully!\n"); }
-			if (fnStructaShutdownGui != NULL) { printf("[Loader] Loaded StructaShutdownGui Successfully!\n"); }
-
-			// Load new Gui Module
-			fnStructaInitGui();
+			StructaUnloadGuiModule();
+			StructaLoadGuiModule();
 		}
+
+		// HotReload Modules
+		//if (StructaCheckVersion(Gui))
+		//{
+		//	// Unload Gui Module
+		//	PFN->StructaShutdownGui();
+
+		//	// Unload Lib
+		//	StructaFreeModule(Gui);
+
+		//	StructaLoadModule(Gui, NULL);
+
+		//	// Get new Gui Module
+		//	PFN->StructaInitGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaInitGui");
+		//	PFN->StructaShutdownGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaShutdownGui");
+
+		//	if (PFN->StructaInitGui != NULL) { printf("[Loader] Loaded StructaInitGui Successfully!\n"); }
+		//	if (PFN->StructaShutdownGui != NULL) { printf("[Loader] Loaded StructaShutdownGui Successfully!\n"); }
+
+		//	// Load new Gui Module
+		//	PFN->StructaInitGui();
+		//}
 
 
 
@@ -61,7 +72,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		StructaEndFrame();
 	}
 
-	fnStructaShutdownGui();
+	StructaUnloadGuiModule();
 
 	StructaShutdown();
 	return 0;

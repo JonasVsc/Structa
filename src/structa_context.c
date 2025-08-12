@@ -14,13 +14,10 @@ StructaResult StructaCreateContext()
 	freopen_s(&file, "CONOUT$", "w", stdout);
 
 	GStructaContext = (StructaContext)calloc(1, sizeof(StructaContext_T));
-
-	if (GStructaContext == NULL)
-		return STRUCTA_ERROR;
+	if (GStructaContext == NULL) return STRUCTA_ERROR;
 
 	// Create Window
 	structaCreateWindow("Dungeon", 640, 480);
-	GStructaContext->close = false;
 
 	// Create renderer
 	structaCreateRenderer();
