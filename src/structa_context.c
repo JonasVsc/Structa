@@ -42,7 +42,7 @@ void StructaShutdown()
 	g = NULL;
 }
 
-StructaResult structaCreateWindow(const char* title, uint32_t width, uint32_t height)
+void structaCreateWindow(const char* title, uint32_t width, uint32_t height)
 {
 	StructaContext g = GStructaContext;
 

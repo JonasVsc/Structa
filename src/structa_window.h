@@ -3,6 +3,6 @@
 
 #include "structa_enum.h"
 
-StructaResult structaCreateWindow(const char* title, uint32_t width, uint32_t height);
+void structaCreateWindow(const char* title, uint32_t width, uint32_t height);
 
 #endif // STRUCTA_WINDOW_H_

@@ -2,6 +2,7 @@
 #define STRUCTA_CONTEXT_H_ 1
 
 #include "structa_enum.h"
+#include "structa_loader.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -52,6 +53,12 @@ typedef struct StructaContext_T {
 	StructaWindow_T window;
 	StructaRenderer_T renderer;
 	bool close;
+
+	// Dynamic Modules
+	StructaModule_T MGui;
+
+	StructaPFN_T pfns;
+
 } StructaContext_T;
 typedef struct StructaContext_T* StructaContext;
 

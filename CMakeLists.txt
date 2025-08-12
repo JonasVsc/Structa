@@ -8,16 +8,39 @@ find_package(Vulkan)
 
 include_directories(src)
 
+# --- Structa --- #
+
 set(STRUCTA_SOURCE 
     "src/structa_enum.h"
     "src/structa_context.h"
-    "src/structa_context.c")
+    "src/structa_context.c"
+    "src/structa_loader.h")
 
 add_library(structa_lib STATIC
     ${STRUCTA_SOURCE})
 
 target_link_libraries(structa_lib PUBLIC
     Vulkan::Vulkan)
+
+target_include_directories(structa_lib PUBLIC
+    include)
+
+# --- Gui module --- #
+
+set(GUI_SOURCE
+    "src/gui/gui_module.h"
+    "src/gui/gui_module.c")
+
+add_library(structa_gui SHARED
+    ${GUI_SOURCE})
+
+target_link_libraries(structa_gui PRIVATE
+    structa_lib)
+
+target_include_directories(structa_gui PRIVATE 
+    include)
+
+# --- Main --- #
 
 add_executable(structa_app WIN32
     "main.c")
