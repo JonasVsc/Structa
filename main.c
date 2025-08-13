@@ -1,5 +1,7 @@
 #include "structa.h"
 
+PFN_StructaWndProcHandler pImGuiWndProc = NULL;
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
 	(void)hInstance;(void)hPrevInstance;(void)pCmdLine;(void)nCmdShow;
@@ -7,56 +9,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	StructaLoadGuiModule();
 
-	//// Hot Reload Registry
-	//Structa_PFN_Table PFN = &GStructaContext->PFN_Table;
-
-	//// Loader Init
-	//StructaModule Gui = &GStructaContext->Gui;
-
-	//StructaLoadModule(Gui, "structa_gui.dll");
-	//
-	//// Load Function Ptrs
-	//PFN->StructaInitGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaInitGui");
-	//PFN->StructaShutdownGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaShutdownGui");
-
-	//if (PFN->StructaInitGui != NULL) { printf("[Loader] Loaded StructaInitGui Successfully!\n"); }
-	//if (PFN->StructaShutdownGui != NULL) { printf("[Loader] Loaded StructaShutdownGui Successfully!\n"); }
-
-	//// Load new Gui Module
-	//PFN->StructaInitGui();
+	Structa_PFN_Table t = &GStructaContext->PFN_Table;
 
 	MSG msg;
 	for (;;)
 	{
-		if (StructaCheckVersion(&GStructaContext->Gui))
+		if (StructaCheckVersion(&GStructaContext->MGui))
 		{
 			StructaUnloadGuiModule();
 			StructaLoadGuiModule();
 		}
-
-		// HotReload Modules
-		//if (StructaCheckVersion(Gui))
-		//{
-		//	// Unload Gui Module
-		//	PFN->StructaShutdownGui();
-
-		//	// Unload Lib
-		//	StructaFreeModule(Gui);
-
-		//	StructaLoadModule(Gui, NULL);
-
-		//	// Get new Gui Module
-		//	PFN->StructaInitGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaInitGui");
-		//	PFN->StructaShutdownGui = (PFN_StructaGuiInit)StructaLoaderGetFunc(Gui, "StructaShutdownGui");
-
-		//	if (PFN->StructaInitGui != NULL) { printf("[Loader] Loaded StructaInitGui Successfully!\n"); }
-		//	if (PFN->StructaShutdownGui != NULL) { printf("[Loader] Loaded StructaShutdownGui Successfully!\n"); }
-
-		//	// Load new Gui Module
-		//	PFN->StructaInitGui();
-		//}
-
-
 
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
@@ -67,9 +29,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		if (!StructaShouldClose()) 
 			break;
 
+		
+		// GUI
+		t->StructaGuiBeginFrame();
+
+		t->StructaGuiDraw();
+
+		t->StructaGuiEndFrame();
+
 		StructaBeginFrame();
 
+		t->StructaGuiRenderDrawData();
 		StructaEndFrame();
+
+		t->StructaGuiUpdatePlatform();
 	}
 
 	StructaUnloadGuiModule();
@@ -80,6 +53,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	if (GStructaContext->PFN_Table.StructaWndProcHandler && GStructaContext->PFN_Table.StructaWndProcHandler(hwnd, uMsg, wParam, lParam))
+		return true;
+
 	switch (uMsg)
 	{
 	case WM_DESTROY:

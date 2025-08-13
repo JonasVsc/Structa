@@ -6,6 +6,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 find_package(Vulkan)
 
+
 include_directories(src)
 
 # --- Structa --- #
@@ -29,6 +30,7 @@ target_include_directories(structa_lib PUBLIC
     include)
 
 # --- Gui module --- #
+add_subdirectory(3rdparty/cimgui)
 
 set(GUI_SOURCE
     "src/gui/gui_module.h"
@@ -37,8 +39,8 @@ set(GUI_SOURCE
 add_library(structa_gui SHARED
     ${GUI_SOURCE})
 
-target_link_libraries(structa_gui PRIVATE
-    structa_lib)
+target_link_libraries(structa_gui PUBLIC
+    structa_lib cimgui)
 
 target_include_directories(structa_gui PRIVATE 
     include)

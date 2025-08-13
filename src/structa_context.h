@@ -50,15 +50,17 @@ typedef struct StructaRenderer_T {
 } StructaRenderer_T;
 typedef struct StructaRenderer_T* StructaRenderer;
 
+typedef struct StructaGui_T {
+	const char* awesomeVar;
+} StructaGui_T;
+typedef struct StructaGui_T* StructaGui;
+
 typedef struct StructaContext_T {
 	StructaWindow_T window;
 	StructaRenderer_T renderer;
 	bool close;
-
-	// Dynamic Modules
-	StructaModule_T Gui;
-
-	// Hot Reload Registry
+	StructaModule_T MGui;
+	StructaGui_T gui;
 	Structa_PFN_Table_T PFN_Table;
 } StructaContext_T;
 typedef struct StructaContext_T* StructaContext;
