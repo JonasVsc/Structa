@@ -14,8 +14,6 @@
 typedef struct StructaContext_T StructaContext_T;
 typedef struct StructaContext_T* StructaContext;
 
-extern StructaContext g;
-
 void StructaGuiLoad(StructaContext ctx);
 
 void StructaGuiUnload();

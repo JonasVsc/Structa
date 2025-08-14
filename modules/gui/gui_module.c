@@ -81,16 +81,37 @@ void StructaGuiBeginFrame()
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	igNewFrame();
-}
+} 
 
 void StructaGuiDraw()
 {
-	igBegin("Awesome Window", NULL, 0);
+	if (g->gui.visible)
+	{
+		g->gui.updateFPS_FlagHelper += g->timer.deltaTime;
+		if (g->gui.updateFPS_FlagHelper > 0.5f)
+		{
+			g->gui.frameTime = g->timer.smoothFPS;
+			g->gui.updateFPS_FlagHelper = 0.0f;
+		}
 
-	igText("Hello World!");
-	igText("Hot Reload Works!");
+		ImGuiIO* io = igGetIO_Nil();
+		ImVec2 outerSize = { 0.0f, 0.0f };
+		ImVec2 windowPos = { io->DisplaySize.x, 0 };
+		ImVec2 pivot = { 1.3f, 0.0f };
+		igSetNextWindowPos(windowPos, ImGuiCond_Always, pivot);
+		
+		ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_NoBackground |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNav |
+			ImGuiWindowFlags_NoInputs;
 
-	igEnd();
+		igBegin("Awesome Window", NULL, flags);
+		igText("%.1f FPS", g->gui.frameTime);
+		igEnd();
+	}
 }
 
 void StructaGuiEndFrame()
@@ -111,6 +132,12 @@ void StructaGuiUpdatePlatform()
 
 LRESULT StructaWndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	if (msg == WM_KEYDOWN && wParam == VK_F1)
+	{
+		g->gui.visible = !g->gui.visible;
+		return 0;
+	} 
+
 	return ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
 }
 

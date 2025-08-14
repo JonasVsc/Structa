@@ -29,6 +29,10 @@ StructaResult StructaCreateContext()
 	GStructaContext = (StructaContext)calloc(1, sizeof(StructaContext_T));
 	if (GStructaContext == NULL) return STRUCTA_ERROR;
 
+	QueryPerformanceFrequency(&GStructaContext->timer.frequency);
+	QueryPerformanceCounter(&GStructaContext->timer.lastFrame);
+	StructaStartTimer();
+
 	// Create Window
 	structaCreateWindow("Structa", 640, 480);
 
@@ -206,4 +210,29 @@ void StructaEndFrame()
 
 	structaGuiUpdatePlatform();
 	r->frame = (r->frame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void StructaUpdateDeltaTime()
+{
+	StructaContext g = GStructaContext;
+
+	QueryPerformanceCounter(&g->timer.currentFrame);
+	float dt = (float)(g->timer.currentFrame.QuadPart - g->timer.lastFrame.QuadPart) / g->timer.frequency.QuadPart;
+
+	g->timer.deltaTime = dt;
+	g->timer.frameTime = 1.0f / dt;
+	g->timer.lastFrame = g->timer.currentFrame;
+
+	// ===== Smooth FPS =====
+	int idx = g->timer.frameDeltaIndex;
+	int count = g->timer.frameDeltaCount;
+
+	g->timer.frameDeltaAccum += dt - g->timer.frameDeltaBuffer[idx];
+	g->timer.frameDeltaBuffer[idx] = dt;
+
+	g->timer.frameDeltaIndex = (idx + 1) % FRAME_HISTORY;
+	g->timer.frameDeltaCount = count < FRAME_HISTORY ? count + 1 : FRAME_HISTORY;
+
+	float averageDelta = g->timer.frameDeltaAccum / (float)g->timer.frameDeltaCount;
+	g->timer.smoothFPS = averageDelta > 0.0f ? (1.0f / averageDelta) : FLT_MAX;
 }

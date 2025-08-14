@@ -11,9 +11,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	structaGameInit();
 
+	GStructaContext->startupTime = StructaEndTimer();
+
 	MSG msg;
 	for (;;)
 	{
+		StructaUpdateDeltaTime();
+
 		{
 			if (StructaCheckVersion(&GStructaContext->MGame))
 			{

@@ -11,9 +11,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <float.h>
 
 #include "game/game_state.h"
 
+#define FRAME_HISTORY 60
 #define MAX_FRAMES_IN_FLIGHT 2
 
 typedef void (*PFN_StructaGuiLoad)(StructaContext);
@@ -37,6 +39,20 @@ typedef struct StructaModule_T {
 	time_t lastWrite;
 } StructaModule_T;
 typedef struct StructaModule_T* StructaModule;
+
+typedef struct StructaTimer_T {
+	LARGE_INTEGER currentFrame, lastFrame;
+	LARGE_INTEGER frequency;
+	LARGE_INTEGER start, end;
+	double elapsed_time;
+	float frameTime; // Stable
+	float deltaTime; // Stable
+	float frameDeltaBuffer[FRAME_HISTORY];
+	float frameDeltaAccum;
+	float smoothFPS;
+	int frameDeltaIndex;
+	int frameDeltaCount;
+} StructaTimer_T;
 
 typedef struct StructaWindow_T {
 	HWND handle;
@@ -71,7 +87,9 @@ typedef struct StructaRenderer_T {
 typedef struct StructaRenderer_T* StructaRenderer;
 
 typedef struct StructaGui_T {
-	const char* awesomeVar;
+	float updateFPS_FlagHelper;
+	float frameTime;
+	bool visible;
 } StructaGui_T;
 typedef struct StructaGui_T* StructaGui;
 
@@ -79,6 +97,8 @@ typedef struct StructaContext_T {
 	// CORE
 	StructaWindow_T window;
 	StructaRenderer_T renderer;
+	StructaTimer_T timer;
+	double startupTime;
 	bool close;
 
 	// GUI
