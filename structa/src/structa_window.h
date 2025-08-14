@@ -1,7 +1,7 @@
 #ifndef STRUCTA_WINDOW_H_
 #define STRUCTA_WINDOW_H_ 1
 
-#include "structa_enum.h"
+#include <stdint.h>
 
 void structaCreateWindow(const char* title, uint32_t width, uint32_t height);
 

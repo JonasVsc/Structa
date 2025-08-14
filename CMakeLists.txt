@@ -5,53 +5,48 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 find_package(Vulkan)
-
-
-include_directories(src)
-
-# --- Structa --- #
-
-set(STRUCTA_SOURCE 
-    "src/structa_enum.h"
-    "src/structa_context.h"
-    "src/structa_context.c"
-    "src/structa_loader.h"
-    "src/structa_table.h"
-    "src/structa_modules.h"
-    "src/structa_modules.c")
-
-add_library(structa_lib STATIC
-    ${STRUCTA_SOURCE})
-
-target_link_libraries(structa_lib PUBLIC
-    Vulkan::Vulkan)
-
-target_include_directories(structa_lib PUBLIC
-    include)
-
-# --- Gui module --- #
 add_subdirectory(3rdparty/cimgui)
 
-set(GUI_SOURCE
-    "src/gui/gui_module.h"
-    "src/gui/gui_module.c")
+include_directories(.)
 
-add_library(structa_gui SHARED
-    ${GUI_SOURCE})
+# --- Module Game --- #
+add_library(structa_game SHARED
+    "game/game.c"
+)
 
-target_link_libraries(structa_gui PUBLIC
-    structa_lib cimgui)
+target_link_libraries(structa_game PUBLIC Vulkan::Vulkan)
 
-target_include_directories(structa_gui PRIVATE 
-    include)
+# --- Module GUI --- #
+add_library(structa_gui_module SHARED
+    "modules/gui/gui_module.h"
+    "modules/gui/gui_module.c"
+)
 
-# --- Main --- #
+target_link_libraries(structa_gui_module PUBLIC cimgui)
 
-add_executable(structa_app WIN32
-    "main.c")
+# --- Structa --- #
+include_directories(structa/src)
+include_directories(shared)
 
-target_link_libraries(structa_app PRIVATE 
-    structa_lib)
+add_executable(structa WIN32
+	"structa/src/structa_internal.h" 
+	"structa/src/structa_loader.h"
+	"structa/src/structa_loader.c"
+	"structa/src/structa_modules.h"
+	"structa/src/structa_modules.c"
+	"structa/src/structa_window.h" 
+	"structa/src/structa_window.c" 
+	"structa/src/structa_renderer.h" 
+	"structa/src/structa_renderer.c" 
+	"structa/src/structa_context.h"
+	"structa/src/structa_context.c"
+	"structa/src/structa_entry.c"
+	"shared/structa_vulkan.c"
+	"shared/structa_utils.c"
+)
+
+target_link_libraries(structa PUBLIC Vulkan::Vulkan)
+target_include_directories(structa PUBLIC structa/src structa/include)
 
 # --- GLSL --- #
 

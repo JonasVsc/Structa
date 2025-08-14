@@ -1,4 +1,5 @@
 #include "gui_module.h"
+#include "structa_internal.h"
 
 #define IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE (8)
 
@@ -24,10 +25,10 @@ static int ImGui_ImplWin32_CreateVkSurface(ImGuiViewport* viewport, ImU64 vk_ins
 }
 
 
-void StructaInitGui(StructaContext ctx)
+void StructaGuiLoad(StructaContext ctx)
 {
 	g = ctx;
-	printf("init gui\n");
+	printf("[Loader] Loading gui\n");
 
 	// cimgui Context
 	igCreateContext(NULL);
@@ -60,19 +61,19 @@ void StructaInitGui(StructaContext ctx)
 
 	ImGuiPlatformIO* platform = igGetPlatformIO_Nil();
 	platform->Platform_CreateVkSurface = ImGui_ImplWin32_CreateVkSurface;
-	 
-	ImGui_ImplWin32_Init(g->window.handle);
-	ImGui_ImplVulkan_Init(&initInfo); 
-}  
 
-void StructaShutdownGui() 
+	ImGui_ImplWin32_Init(g->window.handle);
+	ImGui_ImplVulkan_Init(&initInfo);
+}
+
+void StructaGuiUnload()
 {
 	vkDeviceWaitIdle(g->renderer.device);
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	igDestroyContext(NULL);
 
-	printf("shutdown gui\n");
+	printf("[Loader] Unloading gui\n");
 }
 
 void StructaGuiBeginFrame()
@@ -84,9 +85,10 @@ void StructaGuiBeginFrame()
 
 void StructaGuiDraw()
 {
-	igBegin("HotReloading Test", NULL, 0);
+	igBegin("Awesome Window", NULL, 0);
 
-	igText("Test this will update after building");
+	igText("Hello World!");
+	igText("Hot Reload Works!");
 
 	igEnd();
 }

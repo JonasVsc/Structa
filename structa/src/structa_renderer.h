@@ -1,8 +1,7 @@
 #ifndef STRUCTA_RENDERER_H_
 #define STRUCTA_RENDERER_H_ 1
 
-#include "structa_enum.h"
-
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
 void structaCreateRenderer();

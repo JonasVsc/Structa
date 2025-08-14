@@ -1,83 +1,64 @@
-#ifndef STRUCTA_CONTEXT_H_
-#define STRUCTA_CONTEXT_H_ 1
+#include "structa_context.h"
 
-#include "structa_enum.h"
-#include "structa_loader.h"
-#include "structa_table.h"
+// modules
+#include "structa_window.h"
+#include "structa_renderer.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+StructaContext GStructaContext = NULL;
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+PFN_StructaGameInit structaGameLoad= NULL;
+PFN_StructaGameInit structaGameUnload = NULL;
+PFN_StructaGameInit structaGameInit = NULL;
+PFN_StructaGameUpdate structaGameUpdate = NULL;
+PFN_StructaGameShutdown structaGameShutdown = NULL;
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+PFN_StructaGuiLoad structaGuiLoad = NULL;
+PFN_StructaGuiUnload structaGuiUnload = NULL;
+PFN_StructaGuiBeginFrame structaGuiBeginFrame = NULL;
+PFN_StructaGuiDraw structaGuiDraw = NULL;
+PFN_StructaGuiEndFrame structaGuiEndFrame = NULL;
+PFN_StructaGuiRenderDrawData structaGuiRenderDrawData = NULL;
+PFN_StructaGuiUpdatePlatform structaGuiUpdatePlatform = NULL;
+PFN_StructaWndProcHandler structaWndProcHandler = NULL;
 
-#define MAX_FRAMES_IN_FLIGHT 2
+StructaResult StructaCreateContext()
+{
+	AllocConsole(); FILE* file;
+	freopen_s(&file, "CONOUT$", "w", stdout);
 
-typedef struct StructaWindow_T {
-	HWND handle;
-	uint32_t width;
-	uint32_t height;
-} StructaWindow_T;
-typedef struct StructaWindow_T* StructaWindow;
+	GStructaContext = (StructaContext)calloc(1, sizeof(StructaContext_T));
+	if (GStructaContext == NULL) return STRUCTA_ERROR;
 
-typedef struct StructaRenderer_T {
-	VkInstance instance;
-	VkSurfaceKHR surface;
-	VkPhysicalDevice physicalDevice;
-	VkDevice device;
-	VkQueue graphicsQueue;
-	uint32_t graphicsQueueFamily;
-	VkSwapchainKHR swapchain;
-	VkSurfaceFormatKHR swapchainFormat;
-	VkExtent2D swapchainExtent;
-	VkImage swapchainImages[5];
-	VkImageView swapchainImageViews[5];
-	uint32_t swapchainImageCount;
-	VkPipeline pipeline;
-	VkPipelineLayout layout;
-	VkCommandPool commandPool;
-	VkCommandBuffer commandBuffers[MAX_FRAMES_IN_FLIGHT];
-	VkSemaphore acquireSemaphore[MAX_FRAMES_IN_FLIGHT];
-	VkSemaphore submitSemaphore[5];
-	VkFence frameFence[5];
-	uint32_t imageIndex;
-	uint32_t frame;
-} StructaRenderer_T;
-typedef struct StructaRenderer_T* StructaRenderer;
+	// Create Window
+	structaCreateWindow("Structa", 640, 480);
 
-typedef struct StructaGui_T {
-	const char* awesomeVar;
-} StructaGui_T;
-typedef struct StructaGui_T* StructaGui;
+	// Create renderer
+	structaCreateRenderer();
 
-typedef struct StructaContext_T {
-	StructaWindow_T window;
-	StructaRenderer_T renderer;
-	bool close;
-	StructaModule_T MGui;
-	StructaGui_T gui;
-	Structa_PFN_Table_T PFN_Table;
-} StructaContext_T;
-typedef struct StructaContext_T* StructaContext;
+	return STRUCTA_SUCCESS;
+}
 
-extern StructaContext GStructaContext;
+void StructaShutdown()
+{
+	FreeConsole();
 
-StructaResult StructaCreateContext();
+	StructaContext g = GStructaContext;
+	
+	structaDestroyRenderer();
 
-void StructaShutdown();
+	DestroyWindow(g->window.handle);
 
-inline bool StructaShouldClose() { return !GStructaContext->close; }
+	free(g);
+	g = NULL;
+}
 
-inline void StructaClose() { GStructaContext->close = true; }
-
-inline void StructaBeginFrame()
+void StructaBeginFrame()
 {
 	StructaRenderer r = &GStructaContext->renderer;
+
+	structaGuiBeginFrame();
+	structaGuiDraw();
+	structaGuiEndFrame();
 
 	vkWaitForFences(r->device, 1, &r->frameFence[r->frame], VK_TRUE, UINT64_MAX);
 	vkResetFences(r->device, 1, &r->frameFence[r->frame]);
@@ -157,8 +138,10 @@ inline void StructaBeginFrame()
 	// vkCmdBindPipeline(r->commandBuffers[r->frame], VK_PIPELINE_BIND_POINT_GRAPHICS, r->pipeline);
 }
 
-inline void StructaEndFrame()
+void StructaEndFrame()
 {
+	structaGuiRenderDrawData();
+
 	StructaRenderer r = &GStructaContext->renderer;
 
 	vkCmdEndRendering(r->commandBuffers[r->frame]);
@@ -221,9 +204,6 @@ inline void StructaEndFrame()
 		return;
 	}
 
+	structaGuiUpdatePlatform();
 	r->frame = (r->frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
-
-inline uint32_t clamp(uint32_t val, uint32_t min, uint32_t max) { return val < min ? min : (val > max ? max : val); }
-
-#endif // STRUCTA_CONTEXT_H_

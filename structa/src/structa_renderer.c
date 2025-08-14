@@ -1,63 +1,7 @@
-#include "structa_context.h"
-
-// modules
-#include "structa_window.h"
 #include "structa_renderer.h"
+#include "structa_internal.h"
 
-LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-StructaContext GStructaContext = NULL;
-
-StructaResult StructaCreateContext()
-{
-	AllocConsole(); FILE* file;
-	freopen_s(&file, "CONOUT$", "w", stdout);
-
-	GStructaContext = (StructaContext)calloc(1, sizeof(StructaContext_T));
-	if (GStructaContext == NULL) return STRUCTA_ERROR;
-
-	// Create Window
-	structaCreateWindow("Dungeon", 640, 480);
-
-	// Create renderer
-	structaCreateRenderer();
-
-	return STRUCTA_SUCCESS;
-}
-
-void StructaShutdown()
-{
-	FreeConsole();
-
-	StructaContext g = GStructaContext;
-	
-	structaDestroyRenderer();
-
-	DestroyWindow(g->window.handle);
-
-	free(g);
-	g = NULL;
-}
-
-void structaCreateWindow(const char* title, uint32_t width, uint32_t height)
-{
-	StructaContext g = GStructaContext;
-
-	HINSTANCE instance = (HINSTANCE)GetModuleHandle(NULL);
-	const char CLASS_NAME[] = "Window Class";
-	WNDCLASS wc = { 0 };
-	wc.lpfnWndProc = WindowProc;
-	wc.hInstance = instance;
-	wc.lpszClassName = CLASS_NAME;
-	RegisterClass(&wc);
-
-	g->window.width = width;
-	g->window.height = height;
-	g->window.handle = CreateWindow(CLASS_NAME, title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-		(int)g->window.width, (int)g->window.height, NULL, NULL, instance, NULL);
-
-	ShowWindow(g->window.handle, SW_SHOWNORMAL);
-}
+#include "shared/structa_utils.h"
 
 void structaCreateRenderer()
 {
@@ -76,7 +20,7 @@ void structaCreateRenderer()
 void structaDestroyRenderer()
 {
 	StructaRenderer r = &GStructaContext->renderer;
-	
+
 	vkDeviceWaitIdle(r->device);
 
 	for (uint32_t i = 0; i < r->swapchainImageCount; ++i)

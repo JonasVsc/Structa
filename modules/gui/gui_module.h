@@ -11,13 +11,14 @@
 #include <cimgui.h>
 #include <cimgui_impl.h>
 
-#include "structa.h"
+typedef struct StructaContext_T StructaContext_T;
+typedef struct StructaContext_T* StructaContext;
 
 extern StructaContext g;
 
-void StructaInitGui(StructaContext g);
+void StructaGuiLoad(StructaContext ctx);
 
-void StructaShutdownGui();
+void StructaGuiUnload();
 
 void StructaGuiBeginFrame();
 
