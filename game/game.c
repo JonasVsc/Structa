@@ -1,4 +1,5 @@
 #include "structa_internal.h"
+#include "structa_context.h"
 
 StructaGameState game = NULL;
 
@@ -18,7 +19,6 @@ void StructaGameInit()
 
 void StructaGameUpdate()
 {
-	
 }
 
 void StructaGameShutdown()

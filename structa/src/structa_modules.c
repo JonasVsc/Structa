@@ -41,10 +41,33 @@ bool StructaLoadGameModule()
 	if ((structaGameShutdown = (PFN_StructaGameShutdown)StructaLoaderGetFunc(MGame, "StructaGameShutdown")) == NULL) return false;
 
 	structaGameLoad(GStructaContext);
+
+	return true;
 }
 
 void StructaUnloadGameModule()
 { 
 	structaGameUnload();
 	StructaFreeModule(&GStructaContext->MGame);
+}
+
+bool StructaLoadGLTFModule()
+{
+	StructaModule MGLTF = &GStructaContext->MGLTF;
+	StructaLoadModule(MGLTF, "structa_gltf_module.dll");
+	if (!MGLTF) return false;
+
+	if ((structaGLTFLoad = (PFN_StructaGLTFLoad)StructaLoaderGetFunc(MGLTF, "StructaGLTFLoad")) == NULL) return false;
+	if((structaGLTFUnload = (PFN_StructaGLTFUnload)StructaLoaderGetFunc(MGLTF, "StructaGLTFUnload")) == NULL) return false;
+	if ((structaLoadGLTF = (PFN_StructaLoadGLTF)StructaLoaderGetFunc(MGLTF, "StructaLoadGLTF")) == NULL) return false;
+
+	structaGLTFLoad(GStructaContext);
+
+	return true;
+}
+
+void StructaUnloadGLTFModule()
+{
+	structaGLTFUnload();
+	StructaFreeModule(&GStructaContext->MGLTF);
 }

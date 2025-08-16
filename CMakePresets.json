@@ -9,7 +9,7 @@
     {
       "name": "base",
       "hidden": true,
-      "binaryDir": "${sourceDir}/build/${presetName}",
+      "binaryDir": "${sourceDir}/build",
       "generator": "Visual Studio 17 2022",
       "cacheVariables": {
         "CMAKE_C_FLAGS": "/W4 /permissive-",
@@ -18,7 +18,7 @@
     },
     {
       "name": "debug",
-      "displayName": "Debug",
+      "displayName": "debug",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
@@ -26,7 +26,7 @@
     },
     {
       "name": "release",
-      "displayName": "Release",
+      "displayName": "release",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"

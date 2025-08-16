@@ -14,6 +14,8 @@ void StructaEndFrame();
 
 void StructaUpdateDeltaTime();
 
+void StructaDraw();
+
 inline bool StructaShouldClose() { return !GStructaContext->close; }
 
 inline void StructaClose() { GStructaContext->close = true; }

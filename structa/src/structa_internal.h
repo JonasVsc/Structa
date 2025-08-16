@@ -7,6 +7,8 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
+#include <cglm/cglm.h>
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,6 +19,7 @@
 
 #define FRAME_HISTORY 60
 #define MAX_FRAMES_IN_FLIGHT 2
+#define MAX_MESHES 100
 
 typedef void (*PFN_StructaGuiLoad)(StructaContext);
 typedef void (*PFN_StructaGuiUnload)(void);
@@ -32,6 +35,37 @@ typedef void (*PFN_StructaGameUnload)(void);
 typedef void (*PFN_StructaGameInit)(void);
 typedef void (*PFN_StructaGameUpdate)(void);
 typedef void (*PFN_StructaGameShutdown)(void);
+
+typedef void (*PFN_StructaGLTFLoad)(StructaContext);
+typedef void (*PFN_StructaGLTFUnload)(void);
+typedef void (*PFN_StructaLoadGLTF)(const char*);
+
+typedef struct StructaGLTF_T {
+	const char* file;
+} StructaGLTF_T;
+
+typedef struct Vertex {
+	vec3 position;
+	float uv_x;
+	vec3 normal;
+	float uv_y;
+	vec4 color;
+} Vertex;
+
+typedef struct PushConstants {
+	mat4 world_matrix;
+	VkDeviceAddress vertex_address;
+} PushConstants;
+
+typedef struct StructaMesh_T {
+	VkBuffer vertex_buffer;
+	VkDeviceMemory vertex_memory;
+	VkBuffer index_buffer;
+	VkDeviceMemory index_memory;
+	uint32_t indices;
+	VkDeviceAddress vertexAddress;
+} StructaMesh_T;
+typedef struct StructaMesh_T* StructaMesh;
 
 typedef struct StructaModule_T {
 	const char* path;
@@ -61,6 +95,13 @@ typedef struct StructaWindow_T {
 } StructaWindow_T;
 typedef struct StructaWindow_T* StructaWindow;
 
+typedef struct PipelineCreateInfo {
+	VkPipelineLayout layout;
+	const char* vertShader;
+	const char* fragShader;
+	VkFormat format;
+} PipelineCreateInfo;
+
 typedef struct StructaRenderer_T {
 	VkInstance instance;
 	VkSurfaceKHR surface;
@@ -83,6 +124,10 @@ typedef struct StructaRenderer_T {
 	VkFence frameFence[5];
 	uint32_t imageIndex;
 	uint32_t frame;
+
+	VkCommandPool imCommandPool;
+	VkCommandBuffer imCommanBuffer;
+	VkFence imFence;
 } StructaRenderer_T;
 typedef struct StructaRenderer_T* StructaRenderer;
 
@@ -105,9 +150,17 @@ typedef struct StructaContext_T {
 	StructaModule_T MGui;
 	StructaGui_T gui;
 
+	// GLTF
+	StructaModule_T MGLTF;
+
+	// RESOURCES
+	StructaMesh meshes[MAX_MESHES];
+	uint32_t mesh_count;
+
 	// GAME
 	StructaModule_T MGame;
 	StructaGameState_T game;
+
 
 } StructaContext_T;
 typedef struct StructaContext_T* StructaContext;
@@ -120,6 +173,11 @@ extern PFN_StructaGameUnload structaGameUnload;
 extern PFN_StructaGameInit structaGameInit;
 extern PFN_StructaGameUpdate structaGameUpdate;
 extern PFN_StructaGameShutdown structaGameShutdown;
+
+// GLTF Module
+extern PFN_StructaGLTFLoad structaGLTFLoad;
+extern PFN_StructaGLTFUnload structaGLTFUnload;
+extern PFN_StructaLoadGLTF structaLoadGLTF;
 
 // Gui Module
 extern PFN_StructaGuiLoad structaGuiLoad;

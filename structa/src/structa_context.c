@@ -12,6 +12,10 @@ PFN_StructaGameInit structaGameInit = NULL;
 PFN_StructaGameUpdate structaGameUpdate = NULL;
 PFN_StructaGameShutdown structaGameShutdown = NULL;
 
+PFN_StructaGLTFLoad structaGLTFLoad = NULL;
+PFN_StructaGLTFUnload structaGLTFUnload = NULL;
+PFN_StructaLoadGLTF structaLoadGLTF = NULL;
+
 PFN_StructaGuiLoad structaGuiLoad = NULL;
 PFN_StructaGuiUnload structaGuiUnload = NULL;
 PFN_StructaGuiBeginFrame structaGuiBeginFrame = NULL;
@@ -235,4 +239,10 @@ void StructaUpdateDeltaTime()
 
 	float averageDelta = g->timer.frameDeltaAccum / (float)g->timer.frameDeltaCount;
 	g->timer.smoothFPS = averageDelta > 0.0f ? (1.0f / averageDelta) : FLT_MAX;
+}
+
+void StructaDraw()
+{
+	StructaContext g = GStructaContext;
+	vkCmdBindPipeline(g->renderer.commandBuffers[g->renderer.frame], VK_PIPELINE_BIND_POINT_GRAPHICS, g->renderer.pipeline);
 }

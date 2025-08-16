@@ -87,30 +87,33 @@ void StructaGuiDraw()
 {
 	if (g->gui.visible)
 	{
-		g->gui.updateFPS_FlagHelper += g->timer.deltaTime;
-		if (g->gui.updateFPS_FlagHelper > 0.5f)
+		// FPS
 		{
-			g->gui.frameTime = g->timer.smoothFPS;
-			g->gui.updateFPS_FlagHelper = 0.0f;
-		}
+			g->gui.updateFPS_FlagHelper += g->timer.deltaTime;
+			if (g->gui.updateFPS_FlagHelper > 0.5f)
+			{
+				g->gui.frameTime = g->timer.smoothFPS;
+				g->gui.updateFPS_FlagHelper = 0.0f;
+			}
 
-		ImGuiIO* io = igGetIO_Nil();
-		ImVec2 outerSize = { 0.0f, 0.0f };
-		ImVec2 windowPos = { io->DisplaySize.x, 0 };
-		ImVec2 pivot = { 1.3f, 0.0f };
-		igSetNextWindowPos(windowPos, ImGuiCond_Always, pivot);
+			ImGuiIO* io = igGetIO_Nil();
+			ImVec2 outerSize = { 0.0f, 0.0f };
+			ImVec2 windowPos = { 0.0f, 0.0f };
+			ImVec2 pivot = { 0.0f, 0.0f };
+			igSetNextWindowPos(windowPos, ImGuiCond_Always, pivot);
 		
-		ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
-			ImGuiWindowFlags_NoBackground |
-			ImGuiWindowFlags_NoMove |
-			ImGuiWindowFlags_NoSavedSettings |
-			ImGuiWindowFlags_NoFocusOnAppearing |
-			ImGuiWindowFlags_NoNav |
-			ImGuiWindowFlags_NoInputs;
+			ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+				ImGuiWindowFlags_NoBackground |
+				ImGuiWindowFlags_NoMove |
+				ImGuiWindowFlags_NoSavedSettings |
+				ImGuiWindowFlags_NoFocusOnAppearing |
+				ImGuiWindowFlags_NoNav |
+				ImGuiWindowFlags_NoInputs;
 
-		igBegin("Awesome Window", NULL, flags);
-		igText("%.1f FPS", g->gui.frameTime);
-		igEnd();
+			igBegin("##FPS", NULL, flags);
+			igText("%.1f FPS   ", g->gui.frameTime);
+			igEnd();
+		}
 	}
 }
 

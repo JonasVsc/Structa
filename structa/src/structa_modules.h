@@ -9,4 +9,7 @@ void StructaUnloadGuiModule();
 bool StructaLoadGameModule();
 void StructaUnloadGameModule();
 
+bool StructaLoadGLTFModule();
+void StructaUnloadGLTFModule();
+
 #endif // STRUCTA_MODULE_H_

@@ -20,6 +20,7 @@ void createSwapchainImageViews();
 void createCommandPool();
 void allocateCommandBuffers();
 void createSyncObjects();
+void createPipeline();
 
 VkPresentModeKHR selectPresentMode(VkPresentModeKHR preferred_present_mode);
 VkSurfaceFormatKHR selectSurfaceFormat(VkSurfaceFormatKHR preferred_surface_format);

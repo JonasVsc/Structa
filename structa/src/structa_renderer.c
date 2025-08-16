@@ -1,5 +1,6 @@
 #include "structa_renderer.h"
 #include "structa_internal.h"
+#include "structa_pipeline.h"
 
 #include "shared/structa_utils.h"
 
@@ -15,6 +16,7 @@ void structaCreateRenderer()
 	createCommandPool();
 	allocateCommandBuffers();
 	createSyncObjects();
+	createPipeline();
 }
 
 void structaDestroyRenderer()
@@ -267,6 +269,7 @@ void createCommandPool()
 	};
 
 	vkCreateCommandPool(r->device, &coomand_pool_create_info, NULL, &r->commandPool);
+	vkCreateCommandPool(r->device, &coomand_pool_create_info, NULL, &r->imCommandPool);
 }
 
 void allocateCommandBuffers()
@@ -281,6 +284,11 @@ void allocateCommandBuffers()
 	};
 
 	vkAllocateCommandBuffers(r->device, &command_buffer_alloc_info, r->commandBuffers);
+
+	command_buffer_alloc_info.commandPool = r->imCommandPool;
+	command_buffer_alloc_info.commandBufferCount = 1;
+
+	vkAllocateCommandBuffers(r->device, &command_buffer_alloc_info, &r->imCommanBuffer);
 }
 
 void createSyncObjects()
@@ -306,6 +314,24 @@ void createSyncObjects()
 	{
 		vkCreateSemaphore(r->device, &semaphore_create_info, NULL, &r->submitSemaphore[i]);
 	}
+
+	vkCreateFence(r->device, &fence_create_info, NULL, &r->imFence);
+}
+
+void createPipeline()
+{
+	StructaRenderer r = &GStructaContext->renderer;
+
+	r->layout = StructaCreatePipelineLayout(r->device);
+
+	PipelineCreateInfo pipelineCrateInfo = {
+		.layout = r->layout,
+		.vertShader = "shaders/shader.vert.spv",
+		.fragShader = "shaders/shader.frag.spv",
+		.format = r->swapchainFormat.format
+	};
+
+	r->pipeline = StructaCreatePipeline(r->device, &pipelineCrateInfo);
 }
 
 VkPresentModeKHR selectPresentMode(VkPresentModeKHR preferred_present_mode)

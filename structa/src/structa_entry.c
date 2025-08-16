@@ -7,6 +7,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	// Load Modules
 	StructaLoadGuiModule();
+	StructaLoadGLTFModule();
 	StructaLoadGameModule();
 
 	structaGameInit();
@@ -30,6 +31,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 				StructaUnloadGuiModule();
 				StructaLoadGuiModule();
 			}
+
+			if (StructaCheckVersion(&GStructaContext->MGLTF))
+			{
+				StructaUnloadGLTFModule();
+				StructaLoadGLTFModule();
+
+				structaLoadGLTF("teste");
+			}
 		}
 
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -51,6 +60,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	structaGameShutdown();
 	StructaUnloadGameModule();
+	StructaUnloadGLTFModule();
 	StructaUnloadGuiModule();
 	StructaShutdown();
 	return 0;
